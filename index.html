@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#fdfbfb">
+    <title>Jill's Paradise Journal</title>
+    
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Fonts: Patrick Hand for handwriting, Outfit for clean secondary text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- SVG Filter elements for pencil/sketch effect -->
+    <svg width="0" height="0" style="position:absolute; display:none;">
+      <defs>
+        <filter id="pencilStroke">
+            <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="1" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+    </svg>
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-card widget-card">
+            <h2 id="auth-title" style="font-family:var(--font-hand); font-size:32px; text-align:center; margin-bottom:8px;">Willkommen zurück!</h2>
+            <p id="auth-subtitle" style="text-align:center; color:var(--text-muted); font-size:14px; margin-bottom:24px;">Bitte melde dich an, um dein Journal zu öffnen.</p>
+            
+            <input type="email" id="auth-email" placeholder="E-Mail Adresse" class="auth-input">
+            <input type="password" id="auth-password" placeholder="Passwort" class="auth-input">
+            <div id="auth-error" style="color:#ef4444; font-size:12px; margin-top:8px; text-align:center; display:none;"></div>
+            
+            <button id="auth-submit-btn" onclick="window.handleAuthSubmit()" class="auth-btn">Anmelden</button>
+            
+            <p style="text-align:center; margin-top:20px; font-size:13px; color:var(--text-muted);">
+                <span id="auth-toggle-text">Noch kein Account?</span> 
+                <span id="auth-toggle-btn" onclick="window.toggleAuthMode()" style="color:var(--primary-color); font-weight:600; cursor:pointer;">Hier registrieren</span>
+            </p>
+        </div>
+    </div>
+
+    <div id="app-container" style="display: none;">
+        <!-- Notebook Margins -->
+        <div class="notebook-line"></div>
+        <div class="notebook-line" style="left: 45px;"></div>
+
+        <!-- Top App Bar -->
+        <header class="top-bar">
+            <div class="user-greeting">
+                <h2>Mein Journal</h2>
+                <h1>Jill 
+                    <!-- Decorative Bow using SVG pencil filter -->
+                    <svg width="40" height="34" viewBox="0 0 100 100" class="pencil-bow">
+                        <path d="M50 50 C 10 -10, -10 40, 50 50 C 90 -10, 110 40, 50 50 M 50 50 C 30 80, 20 100, 20 100 M 50 50 C 70 80, 80 100, 80 100" fill="none" stroke="#f472b6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </h1>
+            </div>
+            <div class="profile-avatar" onclick="window.logout()" style="cursor:pointer;" title="Logout">J</div>
+        </header>
+
+        <!-- Main Scrollable Content -->
+        <main id="main-content" class="content-area">
+            <!-- Content injected here -->
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-view="home">
+                <i data-lucide="sparkles"></i>
+                <span>Home</span>
+            </button>
+            <button class="nav-item" data-view="books">
+                <i data-lucide="book"></i>
+                <span>Books</span>
+            </button>
+            <button class="nav-item" data-view="todo-kalender">
+                <i data-lucide="calendar"></i>
+                <span>To-Do Plan</span>
+            </button>
+            <button class="nav-item" data-view="termin-kalender">
+                <i data-lucide="clock"></i>
+                <span>Termine</span>
+            </button>
+        </nav>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app-v2.js"></script>
+</body>
+</html>
