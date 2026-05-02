@@ -1,3 +1,34 @@
+// --- On-Screen Debug Logger ---
+const debugPanel = document.createElement('div');
+debugPanel.style.cssText = 'position:fixed; bottom:0; left:0; width:100%; height:35%; background:rgba(0,0,0,0.9); color:#0f0; font-family:monospace; font-size:11px; overflow-y:scroll; z-index:999999; padding:8px; display:block; border-top:2px solid #333;';
+const closeBtn = document.createElement('button');
+closeBtn.innerText = 'Close Logs';
+closeBtn.style.cssText = 'position:sticky; top:0; float:right; background:red; color:white; border:none; padding:4px 8px; font-size:12px; z-index:1000000; border-radius:4px;';
+closeBtn.onclick = () => debugPanel.style.display = 'none';
+debugPanel.appendChild(closeBtn);
+if (document.body) { document.body.appendChild(debugPanel); } else { window.addEventListener('DOMContentLoaded', () => document.body.appendChild(debugPanel)); }
+
+const origLog = console.log;
+const origError = console.error;
+const origWarn = console.warn;
+function uiLog(args, color) {
+    try {
+        const msg = Array.from(args).map(a => {
+            if(a instanceof Error) return a.toString();
+            return typeof a === 'object' ? JSON.stringify(a) : a;
+        }).join(' ');
+        const d = document.createElement('div');
+        d.style.color = color; d.style.marginBottom = '4px'; d.style.wordBreak = 'break-all';
+        d.textContent = '> ' + msg;
+        debugPanel.appendChild(d);
+        debugPanel.scrollTop = debugPanel.scrollHeight;
+    } catch(e) {}
+}
+console.log = function() { origLog.apply(console, arguments); uiLog(arguments, '#4caf50'); };
+console.error = function() { origError.apply(console, arguments); uiLog(arguments, '#f44336'); };
+console.warn = function() { origWarn.apply(console, arguments); uiLog(arguments, '#ffeb3b'); };
+console.log("Logger initialized. Jill App booting...");
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
 }
@@ -37,12 +68,16 @@ window.toggleAuthMode = () => {
 };
 
 window.handleAuthSubmit = async () => {
+    console.log("=== Auth Submit ===");
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
+    console.log("Mode:", isLoginMode ? "Login" : "Register", "| Email:", email);
+    
     const errEl = document.getElementById('auth-error');
     errEl.style.display = 'none';
 
     if(!email || !password) {
+        console.warn("Validation failed: Email or password empty");
         errEl.innerText = "Bitte fülle beide Felder aus.";
         errEl.style.display = 'block';
         return;
@@ -53,22 +88,28 @@ window.handleAuthSubmit = async () => {
     let error;
     try {
         if(isLoginMode) {
+            console.log("Calling supabase.auth.signInWithPassword...");
             const res = await supabase.auth.signInWithPassword({ email, password });
+            console.log("signIn response:", res);
             error = res.error;
         } else {
+            console.log("Calling supabase.auth.signUp...");
             const res = await supabase.auth.signUp({ email, password });
+            console.log("signUp response:", res);
             error = res.error;
         }
     } catch (e) {
+        console.error("Exception in auth:", e);
         error = e;
     }
 
     if(error) {
-        console.error("Auth Error: ", error);
+        console.error("Auth Error Details:", error.message || error);
         errEl.innerText = "Fehler: " + (error.message || JSON.stringify(error));
         errEl.style.display = 'block';
         document.getElementById('auth-submit-btn').innerText = isLoginMode ? 'Anmelden' : 'Registrieren';
     } else {
+        console.log("Auth call successful, waiting for state change...");
         document.getElementById('auth-submit-btn').innerText = 'Erfolgreich!';
     }
 };
@@ -78,23 +119,35 @@ window.logout = async () => {
 };
 
 const loadData = async () => {
+    console.log("loadData() started. Current user:", currentUser?.email);
     if(!currentUser) return;
-    const [booksRes, todosRes, apptsRes] = await Promise.all([
-        supabase.from('books').select('*').order('id', {ascending: true}),
-        supabase.from('todos').select('*'),
-        supabase.from('appointments').select('*')
-    ]);
     
-    if(booksRes.data) appState.books = booksRes.data.map(b => ({
-        id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: b.type, isLocked: b.is_locked, notes: b.notes
-    }));
-    if(todosRes.data) appState.todos = todosRes.data.map(t => ({
-        id: t.id, title: t.title, bookId: t.book_id, repeatType: t.repeat_type, repeatDays: t.repeat_days, repeatDates: t.repeat_dates, dateStr: t.date_str, isDone: t.is_done
-    }));
-    if(apptsRes.data) appState.appointments = apptsRes.data.map(a => ({
-        id: a.id, title: a.title, dateStr: a.date_str, timeStr: a.time_str, color: a.color
-    }));
-    triggerRender();
+    try {
+        console.log("Fetching data from Supabase...");
+        const [booksRes, todosRes, apptsRes] = await Promise.all([
+            supabase.from('books').select('*').order('id', {ascending: true}),
+            supabase.from('todos').select('*'),
+            supabase.from('appointments').select('*')
+        ]);
+        
+        console.log("Books DB error:", booksRes.error);
+        console.log("Todos DB error:", todosRes.error);
+        console.log("Appts DB error:", apptsRes.error);
+        
+        if(booksRes.data) appState.books = booksRes.data.map(b => ({
+            id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: b.type, isLocked: b.is_locked, notes: b.notes
+        }));
+        if(todosRes.data) appState.todos = todosRes.data.map(t => ({
+            id: t.id, title: t.title, bookId: t.book_id, repeatType: t.repeat_type, repeatDays: t.repeat_days, repeatDates: t.repeat_dates, dateStr: t.date_str, isDone: t.is_done
+        }));
+        if(apptsRes.data) appState.appointments = apptsRes.data.map(a => ({
+            id: a.id, title: a.title, dateStr: a.date_str, timeStr: a.time_str, color: a.color
+        }));
+        triggerRender();
+        console.log("loadData() complete.");
+    } catch(e) {
+        console.error("Exception in loadData:", e);
+    }
 };
 
 // Global standard helpers
@@ -692,7 +745,9 @@ triggerRender = () => {
 };
 
 // Check auth state on load
-supabase.auth.getSession().then(({ data: { session } }) => {
+console.log("Initial auth check (getSession)...");
+supabase.auth.getSession().then(({ data: { session }, error }) => {
+    console.log("Initial session:", session ? session.user.email : "None", "| Error:", error);
     currentUser = session?.user || null;
     const overlay = document.getElementById('auth-overlay');
     const appContainer = document.getElementById('app-container');
@@ -705,17 +760,24 @@ supabase.auth.getSession().then(({ data: { session } }) => {
         overlay.style.display = 'flex'; 
         appContainer.style.display = 'none';
     }
-});
+}).catch(err => console.error("Initial getSession error:", err));
 
+console.log("Setting up onAuthStateChange listener...");
 supabase.auth.onAuthStateChange((event, session) => {
+    console.log("--- onAuthStateChange triggered ---");
+    console.log("Event:", event);
+    console.log("Session User:", session?.user?.email || "None");
+    
     currentUser = session?.user || null;
     const overlay = document.getElementById('auth-overlay');
     const appContainer = document.getElementById('app-container');
     if(currentUser) { 
+        console.log("User active -> Hiding login overlay, calling loadData");
         overlay.style.display = 'none'; 
         appContainer.style.display = 'block';
         loadData(); 
     } else { 
+        console.log("No user -> Showing login overlay");
         overlay.style.display = 'flex'; 
         appContainer.style.display = 'none';
         appState.books = []; appState.todos = []; appState.appointments = [];
