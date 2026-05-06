@@ -107,7 +107,8 @@ const loadData = async () => {
         ]);
         
         console.log("Books DB error:", booksRes.error);
-        console.log("Todos DB error:", todosRes.error);
+        console.log("Templates DB error:", templatesRes.error);
+        console.log("Instances DB error:", instancesRes.error);
         console.log("Appts DB error:", apptsRes.error);
         
         if(booksRes.data) appState.books = booksRes.data.map(b => ({
