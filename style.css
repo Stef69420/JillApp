@@ -28,7 +28,6 @@ body {
 #app-container {
     width: 100vw;
     min-height: 100vh;
-    min-height: 100dvh;
     position: relative;
     background-color: var(--bg-color);
     display: flex;
@@ -40,7 +39,6 @@ body {
     background-size: 24px 24px;
     background-position: 0 0;
     z-index: 1;
-    overflow-x: hidden;
 }
 
 .notebook-line {
@@ -103,9 +101,9 @@ body {
 
 /* Main Content Area */
 .content-area {
-    flex: 1;
+    width: 100%;
     padding: 20px 16px;
-    padding-bottom: 150px; 
+    padding-bottom: 180px; 
 }
 
 .section-title {
