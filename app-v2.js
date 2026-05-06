@@ -1,6 +1,6 @@
 // --- On-Screen Debug Logger ---
 const debugPanel = document.createElement('div');
-debugPanel.style.cssText = 'position:fixed; bottom:0; left:0; width:100%; height:35%; background:rgba(0,0,0,0.9); color:#0f0; font-family:monospace; font-size:11px; overflow-y:scroll; z-index:999999; padding:8px; display:block; border-top:2px solid #333;';
+debugPanel.style.cssText = 'position:fixed; bottom:0; left:0; width:100%; height:35%; background:rgba(0,0,0,0.9); color:#0f0; font-family:monospace; font-size:11px; overflow-y:scroll; z-index:999999; padding:8px; display:none; border-top:2px solid #333;';
 const closeBtn = document.createElement('button');
 closeBtn.innerText = 'Close Logs';
 closeBtn.style.cssText = 'position:sticky; top:0; float:right; background:red; color:white; border:none; padding:4px 8px; font-size:12px; z-index:1000000; border-radius:4px;';
