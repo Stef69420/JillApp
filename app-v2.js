@@ -274,7 +274,13 @@ window.deleteTodo = async (id) => {
     appState.todoInstances = appState.todoInstances.filter(x => x.id !== id);
     triggerRender();
     await _sb.from('todo_instances').delete().eq('id', id);
-}
+};
+
+window.deleteTemplate = async (id) => {
+    appState.todoTemplates = appState.todoTemplates.filter(x => x.id !== id);
+    triggerRender();
+    await _sb.from('todo_templates').delete().eq('id', id);
+};
 
 window.openApptModal = (dateStr, timeStr) => { appState.isApptModalOpen = true; appState.apptDateStr = dateStr; appState.apptTimeStr = timeStr; triggerRender(); };
 window.closeApptModal = () => { appState.isApptModalOpen = false; triggerRender(); };
@@ -587,25 +593,40 @@ const views = {
         const b = appState.books.find(x => x.id === appState.activeBookId) || { title: 'To-Do Liste', type: 'todo', notes: '' };
         appState.todoTab = appState.todoTab || 'daily';
         
-        const bTodos = appState.todos.filter(t => t.bookId === b.id);
-        const dailys = bTodos.filter(t => t.repeatType === 'daily' || t.repeatType === 'once');
-        const weeklys = bTodos.filter(t => t.repeatType === 'weekly');
-        const monthlys = bTodos.filter(t => t.repeatType === 'monthly');
+        const bTemplates = appState.todoTemplates.filter(t => t.book_id === b.id);
+        const bInstances = appState.todoInstances.filter(t => t.bookId === b.id);
         
-        let visibleTodos = [];
-        if(appState.todoTab === 'daily') visibleTodos = dailys;
-        else if(appState.todoTab === 'weekly') visibleTodos = weeklys;
-        else if(appState.todoTab === 'monthly') visibleTodos = monthlys;
+        let visibleItems = [];
+        if(appState.todoTab === 'daily') {
+            // Zeige heutige Instanzen
+            visibleItems = bInstances.filter(i => i.dateStr === todayStr);
+        }
+        else if(appState.todoTab === 'weekly') {
+            visibleItems = bTemplates.filter(t => t.repeat_type === 'weekly');
+        }
+        else if(appState.todoTab === 'monthly') {
+            visibleItems = bTemplates.filter(t => t.repeat_type === 'monthly');
+        }
         
-        const renderItem = (t) => `
-             <div class="widget-card" style="display:flex; align-items:center; justify-content:space-between; padding:16px; margin-bottom:12px;" onclick="window.toggleTodo(${t.id})">
+        const renderItem = (t) => {
+            const isTemplate = !!t.repeat_type;
+            const isDone = !isTemplate && t.isDone;
+            return `
+             <div class="widget-card" style="display:flex; align-items:center; justify-content:space-between; padding:16px; margin-bottom:12px;" ${!isTemplate ? `onclick="window.toggleTodo(${t.id})"` : ''}>
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <div style="width:20px; height:20px; border-radius:6px; background:${t.isDone?'rgba(0,0,0,0.5)':'transparent'}; border:2px solid ${b.color}; cursor:pointer;"></div>
-                    <span style="font-weight:500; font-size:15px; text-decoration:${t.isDone?'line-through':'none'};${t.isDone?'opacity:0.5':''} ">${t.title}</span>
+                    ${isTemplate 
+                        ? `<i data-lucide="repeat" style="width:18px; color:var(--primary-color);"></i>` 
+                        : `<div style="width:20px; height:20px; border-radius:6px; background:${isDone ? 'rgba(0,0,0,0.5)' : 'transparent'}; border:2px solid ${b.color}; cursor:pointer;"></div>`
+                    }
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:500; font-size:15px; text-decoration:${isDone ? 'line-through' : 'none'}; ${isDone ? 'opacity:0.5' : ''}">${t.title}</span>
+                        ${isTemplate ? `<span style="font-size:10px; color:var(--text-muted);">${t.repeat_type === 'weekly' ? 'Wöchentlich' : 'Monatlich'}</span>` : ''}
+                    </div>
                 </div>
-                <i data-lucide="trash-2" style="width:16px; cursor:pointer; color:rgba(0,0,0,0.3);" onclick="event.stopPropagation(); window.deleteTodo(${t.id})"></i>
+                <i data-lucide="trash-2" style="width:16px; cursor:pointer; color:rgba(0,0,0,0.3);" onclick="event.stopPropagation(); ${isTemplate ? `window.deleteTemplate(${t.id})` : `window.deleteTodo(${t.id})`}"></i>
              </div>
-        `;
+            `;
+        };
 
         return `
         <div class="view" id="view-todo">
@@ -618,8 +639,8 @@ const views = {
             </div>
             
             <div style="min-height:50px;">
-                ${visibleTodos.map(renderItem).join('')}
-                ${visibleTodos.length === 0 ? '<p style="color:var(--text-muted); text-align:center; padding:12px; font-size:14px;">Keine Einträge für diese Ansicht.</p>' : ''}
+                ${visibleItems.map(t => renderItem(t)).join('')}
+                ${visibleItems.length === 0 ? `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Keine Einträge in dieser Liste.</p>` : ''}
             </div>
 
             <button onclick="window.openTodoModal('${todayStr}', ${b.id})" style="width:100%; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; padding:16px; border-radius:16px; margin-top:8px; margin-bottom:32px; display:flex; justify-content:center; align-items:center; gap:8px; cursor:pointer;">
