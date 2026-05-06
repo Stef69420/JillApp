@@ -1,34 +1,3 @@
-// --- On-Screen Debug Logger ---
-const debugPanel = document.createElement('div');
-debugPanel.style.cssText = 'position:fixed; bottom:0; left:0; width:100%; height:35%; background:rgba(0,0,0,0.9); color:#0f0; font-family:monospace; font-size:11px; overflow-y:scroll; z-index:999999; padding:8px; display:none; border-top:2px solid #333;';
-const closeBtn = document.createElement('button');
-closeBtn.innerText = 'Close Logs';
-closeBtn.style.cssText = 'position:sticky; top:0; float:right; background:red; color:white; border:none; padding:4px 8px; font-size:12px; z-index:1000000; border-radius:4px;';
-closeBtn.onclick = () => debugPanel.style.display = 'none';
-debugPanel.appendChild(closeBtn);
-if (document.body) { document.body.appendChild(debugPanel); } else { window.addEventListener('DOMContentLoaded', () => document.body.appendChild(debugPanel)); }
-
-const origLog = console.log;
-const origError = console.error;
-const origWarn = console.warn;
-function uiLog(args, color) {
-    try {
-        const msg = Array.from(args).map(a => {
-            if(a instanceof Error) return a.toString();
-            return typeof a === 'object' ? JSON.stringify(a) : a;
-        }).join(' ');
-        const d = document.createElement('div');
-        d.style.color = color; d.style.marginBottom = '4px'; d.style.wordBreak = 'break-all';
-        d.textContent = '> ' + msg;
-        debugPanel.appendChild(d);
-        debugPanel.scrollTop = debugPanel.scrollHeight;
-    } catch(e) {}
-}
-console.log = function() { origLog.apply(console, arguments); uiLog(arguments, '#4caf50'); };
-console.error = function() { origError.apply(console, arguments); uiLog(arguments, '#f44336'); };
-console.warn = function() { origWarn.apply(console, arguments); uiLog(arguments, '#ffeb3b'); };
-console.log("Logger initialized. Jill App booting...");
-
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
 }
@@ -44,7 +13,8 @@ let currentUser = null;
 let isLoginMode = true;
 
 const td = new Date();
-const todayStr = `${td.getFullYear()}-${td.getMonth()}-${td.getDate()}`;
+const formatDate = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const todayStr = formatDate(td.getFullYear(), td.getMonth(), td.getDate());
 
 const appState = {
     isSearching: false, searchQuery: '', activeBookId: 1,
@@ -211,13 +181,13 @@ window.calNavigate = (dir) => {
     else if (appState.calScope === 'week') { d.setDate(d.getDate() + (dir * 7)); } 
     else {
         d.setDate(d.getDate() + dir);
-        appState.selectedDateStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        appState.selectedDateStr = formatDate(d.getFullYear(), d.getMonth(), d.getDate());
     }
     appState.calBaseDate = d.getTime();
     triggerRender();
 };
 window.calSelectDate = (yyyy, mm, dd) => {
-    appState.selectedDateStr = `${yyyy}-${mm}-${dd}`;
+    appState.selectedDateStr = formatDate(yyyy, mm, dd);
     appState.calBaseDate = new Date(yyyy, mm, dd).getTime();
     appState.calScope = 'day';
     triggerRender();
@@ -344,12 +314,18 @@ const views = {
                 <p style="font-size: 14px; color: var(--text-muted);">${unfinishedT ? unfinishedT.title : 'Alles erledigt! 🧸'}</p>
             </div>
             
-            <div class="widget-card" onclick="document.querySelector('[data-view=termin-kalender]').click();" style="cursor:pointer;">
+            <div class="widget-card" onclick="document.querySelector('[data-view=termin-kalender]').click();" style="cursor:pointer; background: linear-gradient(135deg, #ffffff 0%, var(--primary-light) 150%);">
+                <div class="washi-tape-top" style="background: rgba(167, 139, 250, 0.4);"></div>
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <i data-lucide="clock" style="color: var(--accent-rosegold);"></i>
+                    <i data-lucide="calendar" style="color: #a78bfa;"></i>
                     <h4 style="font-size: 16px; font-weight: 600;">Next Appointment</h4>
                 </div>
-                <p style="font-size: 14px; color: var(--text-muted);">${nextAppt ? nextAppt.dateStr + ' um ' + nextAppt.timeStr + ' - ' + nextAppt.title : 'Keine anstehenden Termine'}</p>
+                ${nextAppt ? `
+                    <p style="font-size: 15px; color: var(--text-main); font-weight: 600; margin-bottom: 4px;">${nextAppt.title}</p>
+                    <p style="font-size: 13px; color: var(--text-muted);">${nextAppt.dateStr.split('-').reverse().join('.')} um ${nextAppt.timeStr} Uhr</p>
+                ` : `
+                    <p style="font-size: 14px; color: var(--text-muted);">Keine anstehenden Termine 🧸</p>
+                `}
             </div>
             
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:32px; margin-bottom: 16px;">
@@ -449,7 +425,7 @@ const views = {
             for(let i=0; i<startOffset; i++) { gridHtml += `<div></div>`; }
             
             for(let d=1; d<=daysInMonth; d++) {
-                const dateStr = `${y}-${m}-${d}`;
+                const dateStr = formatDate(y, m, d);
                 const dateObj = new Date(y, m, d);
                 const dayTodos = window.getDateTodos(dateStr, dateObj);
                 const isSelected = appState.selectedDateStr === dateStr;
@@ -472,7 +448,7 @@ const views = {
             let wHtml = `<div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">`;
             for(let i=0; i<7; i++) {
                  let d = new Date(startOfWeek); d.setDate(d.getDate() + i);
-                 const dateStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                 const dateStr = formatDate(d.getFullYear(), d.getMonth(), d.getDate());
                  const dayTodos = window.getDateTodos(dateStr, d);
                  const isSelected = appState.selectedDateStr === dateStr;
                  
@@ -554,7 +530,7 @@ const views = {
             </div><div style="display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:6px; font-size:12px; flex:1;">`;
             for(let i=0; i<startOffset; i++) { gridHtml += `<div></div>`; }
             for(let d=1; d<=daysInMonth; d++) {
-                const dateStr = `${y}-${m}-${d}`;
+                const dateStr = formatDate(y, m, d);
                 const dayAppts = window.getDateAppointments(dateStr);
                 const isSelected = appState.selectedDateStr === dateStr;
                 let evtHtml = dayAppts.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
@@ -574,7 +550,7 @@ const views = {
             let wHtml = `<div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">`;
             for(let i=0; i<7; i++) {
                  let d = new Date(startOfWeek); d.setDate(d.getDate() + i);
-                 const dateStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                 const dateStr = formatDate(d.getFullYear(), d.getMonth(), d.getDate());
                  const dayAppts = window.getDateAppointments(dateStr);
                  const isSelected = appState.selectedDateStr === dateStr;
                  
