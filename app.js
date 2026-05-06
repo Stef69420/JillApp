@@ -3,7 +3,7 @@ if ('serviceWorker' in navigator) {
 }
 
 const supabaseUrl = 'https://wzmhdxrgbcatamwlrlxj.supabase.co';
-const supabaseKey = 'sb_publishable_K5CQAC_xeZZpSmNCNtjPrQ_NTtSVSGQ';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6bWhkeHJnYmNhdGFtd2xybHhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NDg2NjUsImV4cCI6MjA5MjQyNDY2NX0.ZcoJqSBiQLyJbqkYSS4izLNQKOoZ3RsKod8Vxr8s90o';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 const mainContent = document.getElementById('main-content');
