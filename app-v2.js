@@ -25,6 +25,8 @@ const appState = {
     selectedDates: [], 
     todoTemplates: [],
     todoInstances: [],
+    isDeleteModalOpen: false,
+    pendingDeleteTodo: null,
     isApptModalOpen: false, apptDateStr: '', apptTimeStr: '',
     books: [],
     todos: [],
@@ -277,16 +279,44 @@ window.toggleTodo = async (id) => {
     }
 };
 
-window.deleteTodo = async (id) => {
+window.deleteTodo = (id) => {
+    const t = appState.todoInstances.find(x => x.id === id);
+    if(t && t.template_id) {
+        appState.pendingDeleteTodo = t;
+        appState.isDeleteModalOpen = true;
+        triggerRender();
+    } else {
+        window.confirmDeleteInstance(id);
+    }
+};
+
+window.confirmDeleteInstance = async (id) => {
     appState.todoInstances = appState.todoInstances.filter(x => x.id !== id);
+    appState.isDeleteModalOpen = false;
     triggerRender();
     await _sb.from('todo_instances').delete().eq('id', id);
 };
 
-window.deleteTemplate = async (id) => {
-    appState.todoTemplates = appState.todoTemplates.filter(x => x.id !== id);
+window.confirmDeleteForever = async (templateId) => {
+    appState.todoTemplates = appState.todoTemplates.filter(x => x.id !== templateId);
+    appState.todoInstances = appState.todoInstances.filter(x => x.template_id !== templateId);
+    appState.isDeleteModalOpen = false;
     triggerRender();
-    await _sb.from('todo_templates').delete().eq('id', id);
+    await _sb.from('todo_templates').delete().eq('id', templateId);
+};
+
+window.closeDeleteModal = () => {
+    appState.isDeleteModalOpen = false;
+    appState.pendingDeleteTodo = null;
+    triggerRender();
+};
+
+window.deleteTemplate = async (id) => {
+    if(confirm("Möchtest du diese Regel wirklich dauerhaft löschen?")) {
+        appState.todoTemplates = appState.todoTemplates.filter(x => x.id !== id);
+        triggerRender();
+        await _sb.from('todo_templates').delete().eq('id', id);
+    }
 };
 
 window.openApptModal = (dateStr, timeStr) => { appState.isApptModalOpen = true; appState.apptDateStr = dateStr; appState.apptTimeStr = timeStr; triggerRender(); };
@@ -717,6 +747,23 @@ function triggerRender() {
          </div>`);
     }
 
+    if(appState.isDeleteModalOpen && appState.pendingDeleteTodo) {
+        document.body.insertAdjacentHTML('beforeend', `
+        <div id="delete-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:110; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(4px);">
+             <div style="background:white; border-radius:24px; padding:24px; width:90%; max-width:350px; box-shadow:0 20px 40px rgba(0,0,0,0.2); text-align:center;">
+                 <div style="font-size:40px; margin-bottom:16px;">🗑️</div>
+                 <h3 style="font-family:var(--font-hand); font-size:22px; margin-bottom:12px;">Aufgabe löschen</h3>
+                 <p style="font-size:14px; color:var(--text-muted); margin-bottom:24px;">Möchtest du diese Aufgabe nur für heute oder dauerhaft für immer löschen?</p>
+                 
+                 <div style="display:flex; flex-direction:column; gap:12px;">
+                     <button onclick="window.confirmDeleteInstance(${appState.pendingDeleteTodo.id})" style="padding:12px; border-radius:12px; border:none; background:var(--primary-color); color:white; font-weight:600; cursor:pointer;">Nur für heute löschen</button>
+                     <button onclick="window.confirmDeleteForever(${appState.pendingDeleteTodo.template_id})" style="padding:12px; border-radius:12px; border:1px solid #fca5a5; background:transparent; color:#f87171; font-weight:600; cursor:pointer;">Dauerhaft löschen (für immer)</button>
+                     <button onclick="window.closeDeleteModal()" style="padding:12px; border-radius:12px; border:none; background:transparent; color:var(--text-muted); font-size:13px; cursor:pointer;">Abbrechen</button>
+                 </div>
+             </div>
+        </div>`);
+    }
+
     window.onTodoRepeatChange = (val) => { appState.todoRepeatOption = val; triggerRender(); };
     window.toggleModalDay = (d) => {
         if(appState.selectedDays.includes(d)) appState.selectedDays = appState.selectedDays.filter(x => x !== d);
@@ -766,6 +813,7 @@ function triggerRender() {
 const clearModals = () => {
     const tm = document.getElementById('todo-modal'); if(tm) tm.remove();
     const am = document.getElementById('appt-modal'); if(am) am.remove();
+    const dm = document.getElementById('delete-modal'); if(dm) dm.remove();
 };
 const originalRender = triggerRender;
 triggerRender = () => {
