@@ -222,7 +222,12 @@ window.saveTodo = async () => {
         const { data } = await _sb.from('todo_instances').insert([{
             title: title, book_id: bookIdVal, date_str: appState.modalDateStr, is_done: false
         }]).select();
-        if (data && data.length > 0) appState.todoInstances.push(data[0]);
+        if (data && data.length > 0) {
+            const t = data[0];
+            appState.todoInstances.push({
+                id: t.id, template_id: t.template_id, title: t.title, bookId: t.book_id, dateStr: t.date_str, isDone: t.is_done
+            });
+        }
     } else {
         const { data } = await _sb.from('todo_templates').insert([{
             title: title, book_id: bookIdVal, repeat_type: repeatOption,
@@ -235,6 +240,7 @@ window.saveTodo = async () => {
         }
     }
     window.closeTodoModal();
+    triggerRender();
 };
 
 window.generateInstancesForToday = async () => {
