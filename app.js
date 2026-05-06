@@ -4,7 +4,7 @@ if ('serviceWorker' in navigator) {
 
 const supabaseUrl = 'https://wzmhdxrgbcatamwlrlxj.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6bWhkeHJnYmNhdGFtd2xybHhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NDg2NjUsImV4cCI6MjA5MjQyNDY2NX0.ZcoJqSBiQLyJbqkYSS4izLNQKOoZ3RsKod8Vxr8s90o';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const _sb = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 const mainContent = document.getElementById('main-content');
 const navItems = document.querySelectorAll('.nav-item');
@@ -53,10 +53,10 @@ window.handleAuthSubmit = async () => {
     let error;
     try {
         if(isLoginMode) {
-            const res = await supabase.auth.signInWithPassword({ email, password });
+            const res = await _sb.auth.signInWithPassword({ email, password });
             error = res.error;
         } else {
-            const res = await supabase.auth.signUp({ email, password });
+            const res = await _sb.auth.signUp({ email, password });
             error = res.error;
         }
     } catch (e) {
@@ -74,15 +74,15 @@ window.handleAuthSubmit = async () => {
 };
 
 window.logout = async () => {
-    await supabase.auth.signOut();
+    await _sb.auth.signOut();
 };
 
 const loadData = async () => {
     if(!currentUser) return;
     const [booksRes, todosRes, apptsRes] = await Promise.all([
-        supabase.from('books').select('*').order('id', {ascending: true}),
-        supabase.from('todos').select('*'),
-        supabase.from('appointments').select('*')
+        _sb.from('books').select('*').order('id', {ascending: true}),
+        _sb.from('todos').select('*'),
+        _sb.from('appointments').select('*')
     ]);
     
     if(booksRes.data) appState.books = booksRes.data.map(b => ({
@@ -102,23 +102,23 @@ window.handleSearch = (el) => { appState.searchQuery = el.value; triggerRender()
 window.goToBooks = () => { document.querySelector('[data-view="books"]').click(); };
 
 window.changeTodoTab = (tab) => { appState.todoTab = tab; triggerRender(); };
-window.updateBookNotes = async (id, text) => { const b = appState.books.find(x => x.id === id); if(b) { b.notes = text; await supabase.from('books').update({ notes: text }).eq('id', id); } };
+window.updateBookNotes = async (id, text) => { const b = appState.books.find(x => x.id === id); if(b) { b.notes = text; await _sb.from('books').update({ notes: text }).eq('id', id); } };
 
 // Book management
-window.updateBookTitle = async (id, val) => { const b = appState.books.find(x => x.id === id); if(b) { b.title = val; await supabase.from('books').update({ title: val }).eq('id', id); } };
-window.updateBookColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.color = color; triggerRender(); await supabase.from('books').update({ color: color }).eq('id', id); } };
-window.updateBookTextColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.textColor = color; triggerRender(); await supabase.from('books').update({ text_color: color }).eq('id', id); } };
-window.deleteBook = async (id) => { appState.books = appState.books.filter(x => x.id !== id); triggerRender(); await supabase.from('books').delete().eq('id', id); };
+window.updateBookTitle = async (id, val) => { const b = appState.books.find(x => x.id === id); if(b) { b.title = val; await _sb.from('books').update({ title: val }).eq('id', id); } };
+window.updateBookColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.color = color; triggerRender(); await _sb.from('books').update({ color: color }).eq('id', id); } };
+window.updateBookTextColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.textColor = color; triggerRender(); await _sb.from('books').update({ text_color: color }).eq('id', id); } };
+window.deleteBook = async (id) => { appState.books = appState.books.filter(x => x.id !== id); triggerRender(); await _sb.from('books').delete().eq('id', id); };
 window.addBook = async () => { 
-    const { data } = await supabase.from('books').insert([{ title: 'Neues Buch', color: '#fef08a', text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
+    const { data } = await _sb.from('books').insert([{ title: 'Neues Buch', color: '#fef08a', text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
     if(data && data.length > 0) {
         const b = data[0];
         appState.books.push({ id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: b.type, isLocked: b.is_locked, notes: b.notes });
         triggerRender();
     }
 };
-window.updateBookType = async (id, type) => { const b = appState.books.find(x => x.id === id); if(b && !b.isLocked) { b.type = type; triggerRender(); await supabase.from('books').update({ type: type }).eq('id', id); } };
-window.lockBook = async (id) => { const b = appState.books.find(x => x.id === id); if(b) { b.isLocked = true; triggerRender(); await supabase.from('books').update({ is_locked: true }).eq('id', id); } };
+window.updateBookType = async (id, type) => { const b = appState.books.find(x => x.id === id); if(b && !b.isLocked) { b.type = type; triggerRender(); await _sb.from('books').update({ type: type }).eq('id', id); } };
+window.lockBook = async (id) => { const b = appState.books.find(x => x.id === id); if(b) { b.isLocked = true; triggerRender(); await _sb.from('books').update({ is_locked: true }).eq('id', id); } };
 
 window.openBook = (id) => {
     const b = appState.books.find(x => x.id === id);
@@ -193,7 +193,7 @@ window.saveTodo = async () => {
     const rDates = [dObj.getDate()];
     const bookIdVal = bookId === 'sonstiges' ? null : parseInt(bookId);
 
-    const { data } = await supabase.from('todos').insert([{
+    const { data } = await _sb.from('todos').insert([{
         title: title,
         book_id: bookIdVal,
         repeat_type: repeatOption,
@@ -217,14 +217,14 @@ window.toggleTodo = async (id) => {
     if(t) {
         t.isDone = !t.isDone;
         triggerRender();
-        await supabase.from('todos').update({ is_done: t.isDone }).eq('id', id);
+        await _sb.from('todos').update({ is_done: t.isDone }).eq('id', id);
     }
 };
 
 window.deleteTodo = async (id) => {
     appState.todos = appState.todos.filter(x => x.id !== id);
     triggerRender();
-    await supabase.from('todos').delete().eq('id', id);
+    await _sb.from('todos').delete().eq('id', id);
 }
 
 window.openApptModal = (dateStr, timeStr) => { appState.isApptModalOpen = true; appState.apptDateStr = dateStr; appState.apptTimeStr = timeStr; triggerRender(); };
@@ -237,7 +237,7 @@ window.saveAppt = async () => {
     const colors = ['#fbcfe8', '#bae6fd', '#bbf7d0', '#fef08a', '#e9d5ff'];
     const rC = colors[Math.floor(Math.random() * colors.length)];
     
-    const { data } = await supabase.from('appointments').insert([{
+    const { data } = await _sb.from('appointments').insert([{
         title: title, date_str: appState.apptDateStr, time_str: timeStr, color: rC
     }]).select();
 
@@ -253,7 +253,7 @@ window.saveAppt = async () => {
 window.deleteAppt = async (id) => {
     appState.appointments = appState.appointments.filter(x => x.id !== id);
     triggerRender();
-    await supabase.from('appointments').delete().eq('id', id);
+    await _sb.from('appointments').delete().eq('id', id);
 };
 
 const svgSmallBow = `<svg width="24" height="24" viewBox="0 0 100 100" style="position:absolute; top:-10px; right:-8px; transform:rotate(-15deg);" class="pencil-bow"><path d="M50 50 C 10 -10, -10 40, 50 50 C 90 -10, 110 40, 50 50 M 50 50 C 30 80, 20 100, 20 100 M 50 50 C 70 80, 80 100, 80 100" fill="none" stroke="var(--primary-color)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -692,7 +692,7 @@ triggerRender = () => {
 };
 
 // Check auth state on load
-supabase.auth.getSession().then(({ data: { session } }) => {
+_sb.auth.getSession().then(({ data: { session } }) => {
     currentUser = session?.user || null;
     const overlay = document.getElementById('auth-overlay');
     const appContainer = document.getElementById('app-container');
@@ -707,7 +707,7 @@ supabase.auth.getSession().then(({ data: { session } }) => {
     }
 });
 
-supabase.auth.onAuthStateChange((event, session) => {
+_sb.auth.onAuthStateChange((event, session) => {
     currentUser = session?.user || null;
     const overlay = document.getElementById('auth-overlay');
     const appContainer = document.getElementById('app-container');
