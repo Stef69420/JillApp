@@ -443,13 +443,12 @@ const views = {
         if (appState.calScope === 'month') {
             headerText = `${monthNames[m]} ${y}`;
             const daysInMonth = new Date(y, m + 1, 0).getDate();
-            let startOffset = new Date(y, m, 1).getDay() || 7; startOffset -= 1;
+            const firstDay = new Date(y, m, 1).getDay() === 0 ? 6 : new Date(y, m, 1).getDay() - 1;
             
-            let gridHtml = `<div style="display:grid; grid-template-columns:repeat(7, 1fr); text-align:center; gap:4px; font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">
-                <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
-            </div><div style="display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:6px; font-size:12px; flex:1;">`;
+            let gridHtml = `<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; width:100%;">`;
+            ['Mo','Di','Mi','Do','Fr','Sa','So'].forEach(d => gridHtml += `<div style="text-align:center; font-size:10px; font-weight:700; color:var(--text-muted); padding-bottom:8px;">${d}</div>`);
             
-            for(let i=0; i<startOffset; i++) { gridHtml += `<div></div>`; }
+            for(let i=0; i<firstDay; i++) { gridHtml += `<div></div>`; }
             
             for(let d=1; d<=daysInMonth; d++) {
                 const dateStr = formatDate(y, m, d);
@@ -460,13 +459,13 @@ const views = {
                 let evtHtml = dayTodos.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
                 if(dayTodos.length > 3) evtHtml += `<div style="font-size:8px; color:var(--text-muted); text-align:center;">+${dayTodos.length - 3}</div>`;
                 
-                gridHtml += `<div style="min-height:80px; border-radius:8px; padding:2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
-                                <span style="font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; margin-bottom:2px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
-                                <div style="display:flex; flex-direction:column; width:80%; gap:2px; margin-top:2px;">${evtHtml}</div>
+                gridHtml += `<div style="min-height:70px; border-radius:8px; padding:4px 2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'}; overflow:hidden;" onclick="window.calSelectDate(${y}, ${m}, ${d})">
+                                <span style="font-size:13px; font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; margin-bottom:2px; width:20px; height:20px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
+                                <div style="display:flex; flex-direction:column; width:100%; gap:2px; margin-top:2px; padding:0 2px;">${evtHtml}</div>
                              </div>`;
             }
             gridHtml += `</div>`;
-            bodyHtml = `<div class="widget-card" style="padding:16px; display:flex; flex-direction:column; margin-bottom:0;">${gridHtml}</div>`;
+            bodyHtml = `<div class="widget-card" style="padding:16px 8px; display:flex; flex-direction:column; margin-bottom:0;">${gridHtml}</div>`;
             
         } else if (appState.calScope === 'week') {
             headerText = `${monthNames[m]} ${y}`;
@@ -550,25 +549,28 @@ const views = {
         if (appState.calScope === 'month') {
             headerText = `${monthNames[m]} ${y}`;
             const daysInMonth = new Date(y, m + 1, 0).getDate();
-            let startOffset = new Date(y, m, 1).getDay() || 7; startOffset -= 1;
+            const firstDay = new Date(y, m, 1).getDay() === 0 ? 6 : new Date(y, m, 1).getDay() - 1;
             
-            let gridHtml = `<div style="display:grid; grid-template-columns:repeat(7, 1fr); text-align:center; gap:4px; font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">
-                <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
-            </div><div style="display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:6px; font-size:12px; flex:1;">`;
-            for(let i=0; i<startOffset; i++) { gridHtml += `<div></div>`; }
+            let gridHtml = `<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; width:100%;">`;
+            ['Mo','Di','Mi','Do','Fr','Sa','So'].forEach(d => gridHtml += `<div style="text-align:center; font-size:10px; font-weight:700; color:var(--text-muted); padding-bottom:8px;">${d}</div>`);
+            
+            for(let i=0; i<firstDay; i++) { gridHtml += `<div></div>`; }
+            
             for(let d=1; d<=daysInMonth; d++) {
                 const dateStr = formatDate(y, m, d);
                 const dayAppts = window.getDateAppointments(dateStr);
                 const isSelected = appState.selectedDateStr === dateStr;
+                
                 let evtHtml = dayAppts.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
-                if(dayAppts.length > 3) evtHtml += `<div style="font-size:8px; color:var(--text-muted); text-align:center;">+${dayAppts.length - 3}</div>`;
-                gridHtml += `<div style="min-height:80px; border-radius:8px; padding:2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
-                                <span style="font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; width:22px; height:22px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
-                                <div style="display:flex; flex-direction:column; width:80%; gap:2px; margin-top:2px;">${evtHtml}</div>
+                if(dayAppts.length > 3) evtHtml += `<div style="font-size:7px; color:var(--text-muted); text-align:center;">+${dayAppts.length - 3}</div>`;
+                
+                gridHtml += `<div style="min-height:70px; border-radius:8px; padding:4px 2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'}; overflow:hidden;" onclick="window.calSelectDate(${y}, ${m}, ${d})">
+                                <span style="font-size:13px; font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; margin-bottom:2px; width:20px; height:20px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
+                                <div style="display:flex; flex-direction:column; width:100%; gap:2px; margin-top:2px; padding:0 2px;">${evtHtml}</div>
                              </div>`;
             }
             gridHtml += `</div>`;
-            bodyHtml = `<div class="widget-card" style="padding:16px; display:flex; flex-direction:column;">${gridHtml}</div>`;
+            bodyHtml = `<div class="widget-card" style="padding:16px 8px; display:flex; flex-direction:column;">${gridHtml}</div>`;
             
         } else if (appState.calScope === 'week') {
             headerText = `${monthNames[m]} ${y}`;
