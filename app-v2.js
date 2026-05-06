@@ -20,6 +20,11 @@ const appState = {
     isSearching: false, searchQuery: '', activeBookId: 1,
     calBaseDate: td.getTime(), calScope: 'month', selectedDateStr: todayStr,
     isTodoModalOpen: false, modalDateStr: '', modalBookIdDefault: null,
+    todoRepeatOption: 'once', 
+    selectedDays: [], 
+    selectedDates: [], 
+    todoTemplates: [],
+    todoInstances: [],
     isApptModalOpen: false, apptDateStr: '', apptTimeStr: '',
     books: [],
     todos: [],
@@ -94,9 +99,10 @@ const loadData = async () => {
     
     try {
         console.log("Fetching data from Supabase...");
-        const [booksRes, todosRes, apptsRes] = await Promise.all([
+        const [booksRes, templatesRes, instancesRes, apptsRes] = await Promise.all([
             _sb.from('books').select('*').order('id', {ascending: true}),
-            _sb.from('todos').select('*'),
+            _sb.from('todo_templates').select('*'),
+            _sb.from('todo_instances').select('*'),
             _sb.from('appointments').select('*')
         ]);
         
@@ -107,9 +113,13 @@ const loadData = async () => {
         if(booksRes.data) appState.books = booksRes.data.map(b => ({
             id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: b.type, isLocked: b.is_locked, notes: b.notes
         }));
-        if(todosRes.data) appState.todos = todosRes.data.map(t => ({
-            id: t.id, title: t.title, bookId: t.book_id, repeatType: t.repeat_type, repeatDays: t.repeat_days, repeatDates: t.repeat_dates, dateStr: t.date_str, isDone: t.is_done
+        if(templatesRes.data) appState.todoTemplates = templatesRes.data;
+        if(instancesRes.data) appState.todoInstances = instancesRes.data.map(t => ({
+            id: t.id, template_id: t.template_id, title: t.title, bookId: t.book_id, dateStr: t.date_str, isDone: t.is_done
         }));
+        
+        await window.generateInstancesForToday();
+
         if(apptsRes.data) appState.appointments = apptsRes.data.map(a => ({
             id: a.id, title: a.title, dateStr: a.date_str, timeStr: a.time_str, color: a.color
         }));
@@ -157,13 +167,8 @@ window.openBook = (id) => {
 window.getDateTodos = (dateStr, dateObj) => {
     const dayOfWeek = dateObj.getDay() || 7;
     const dateNum = dateObj.getDate();
-    return appState.todos.filter(t => {
-        if(t.repeatType === 'once' && t.dateStr === dateStr) return true;
-        if(t.repeatType === 'daily') return true;
-        if(t.repeatType === 'weekly' && t.repeatDays && t.repeatDays.includes(dayOfWeek)) return true;
-        if(t.repeatType === 'monthly' && t.repeatDates && t.repeatDates.includes(dateNum)) return true;
-        return false;
-    }).map(t => {
+    
+    return appState.todoInstances.filter(t => t.dateStr === dateStr).map(t => {
         const b = appState.books.find(x => x.id == t.bookId);
         return { ...t, color: b ? b.color : '#e5e7eb' };
     });
@@ -197,6 +202,9 @@ window.openTodoModal = (dateStr, defaultBookId = null) => {
     appState.isTodoModalOpen = true; 
     appState.modalDateStr = dateStr; 
     appState.modalBookIdDefault = defaultBookId;
+    appState.todoRepeatOption = 'once';
+    appState.selectedDays = [];
+    appState.selectedDates = [];
     triggerRender(); 
 };
 window.closeTodoModal = () => { appState.isTodoModalOpen = false; triggerRender(); };
@@ -204,50 +212,68 @@ window.closeTodoModal = () => { appState.isTodoModalOpen = false; triggerRender(
 window.saveTodo = async () => {
     const title = document.getElementById('modal-todo-title').value;
     const bookId = document.getElementById('modal-todo-book').value;
-    const repeatOption = document.getElementById('modal-todo-repeat').value;
-    if(!title) return;
-    
-    const dObj = new Date();
-    if(appState.modalDateStr) {
-        let parts = appState.modalDateStr.split('-');
-        dObj.setFullYear(parts[0], parts[1], parts[2]);
-    }
-    const rDays = [dObj.getDay() || 7];
-    const rDates = [dObj.getDate()];
+    const repeatOption = appState.todoRepeatOption;
+    if (!title) return;
+
     const bookIdVal = bookId === 'sonstiges' ? null : parseInt(bookId);
 
-    const { data } = await _sb.from('todos').insert([{
-        title: title,
-        book_id: bookIdVal,
-        repeat_type: repeatOption,
-        repeat_days: rDays,
-        repeat_dates: rDates,
-        date_str: appState.modalDateStr,
-        is_done: false
-    }]).select();
-
-    if(data && data.length > 0) {
-        const t = data[0];
-        appState.todos.push({
-            id: t.id, title: t.title, bookId: t.book_id, repeatType: t.repeat_type, repeatDays: t.repeat_days, repeatDates: t.repeat_dates, dateStr: t.date_str, isDone: t.is_done
-        });
+    if (repeatOption === 'once') {
+        const { data } = await _sb.from('todo_instances').insert([{
+            title: title, book_id: bookIdVal, date_str: appState.modalDateStr, is_done: false
+        }]).select();
+        if (data && data.length > 0) appState.todoInstances.push(data[0]);
+    } else {
+        const { data } = await _sb.from('todo_templates').insert([{
+            title: title, book_id: bookIdVal, repeat_type: repeatOption,
+            repeat_days: repeatOption === 'weekly' ? appState.selectedDays : null,
+            repeat_dates: repeatOption === 'monthly' ? appState.selectedDates : null
+        }]).select();
+        if (data && data.length > 0) {
+            appState.todoTemplates.push(data[0]);
+            await window.generateInstancesForToday();
+        }
     }
     window.closeTodoModal();
 };
 
+window.generateInstancesForToday = async () => {
+    const now = new Date();
+    const ds = formatDate(now.getFullYear(), now.getMonth(), now.getDate());
+    const dow = now.getDay() || 7;
+    const dom = now.getDate();
+
+    for (const temp of appState.todoTemplates) {
+        let match = false;
+        if (temp.repeat_type === 'daily') match = true;
+        else if (temp.repeat_type === 'weekly' && temp.repeat_days?.includes(dow)) match = true;
+        else if (temp.repeat_type === 'monthly' && temp.repeat_dates?.includes(dom)) match = true;
+
+        if (match) {
+            const exists = appState.todoInstances.find(i => i.template_id === temp.id && i.dateStr === ds);
+            if (!exists) {
+                const { data } = await _sb.from('todo_instances').insert([{
+                    template_id: temp.id, title: temp.title, book_id: temp.book_id, date_str: ds, is_done: false
+                }]).select();
+                if (data && data.length > 0) appState.todoInstances.push(data[0]);
+            }
+        }
+    }
+    triggerRender();
+};
+
 window.toggleTodo = async (id) => {
-    const t = appState.todos.find(x => x.id === id);
+    const t = appState.todoInstances.find(x => x.id === id);
     if(t) {
         t.isDone = !t.isDone;
         triggerRender();
-        await _sb.from('todos').update({ is_done: t.isDone }).eq('id', id);
+        await _sb.from('todo_instances').update({ is_done: t.isDone }).eq('id', id);
     }
 };
 
 window.deleteTodo = async (id) => {
-    appState.todos = appState.todos.filter(x => x.id !== id);
+    appState.todoInstances = appState.todoInstances.filter(x => x.id !== id);
     triggerRender();
-    await _sb.from('todos').delete().eq('id', id);
+    await _sb.from('todo_instances').delete().eq('id', id);
 }
 
 window.openApptModal = (dateStr, timeStr) => { appState.isApptModalOpen = true; appState.apptDateStr = dateStr; appState.apptTimeStr = timeStr; triggerRender(); };
@@ -628,21 +654,52 @@ function triggerRender() {
                      ${appState.books.filter(b => b.type === 'todo').map(b => `<option value="${b.id}" ${b.id === appState.modalBookIdDefault ? 'selected' : ''}>📚 ${b.title}</option>`).join('')}
                  </select>
 
-                 <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">WIEDERHOLUNG</div>
-                 <select id="modal-todo-repeat" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:24px; font-family:var(--font-clean); outline:none; background:#fff;">
-                     <option value="once">Einmalig (Datum: ${appState.modalDateStr})</option>
-                     <option value="daily">Täglich</option>
-                     <option value="weekly">Wöchentlich (jeden aktuellen Wochentag)</option>
-                     <option value="monthly">Monatlich (am aktuellen Kalendertag)</option>
-                 </select>
-                 
-                 <div style="display:flex; gap:12px;">
-                     <button onclick="window.closeTodoModal()" style="flex:1; padding:12px; border-radius:12px; border:1px solid #e5e7eb; background:transparent; font-weight:600; cursor:pointer;">Abbrechen</button>
-                     <button onclick="window.saveTodo()" style="flex:1; padding:12px; border-radius:12px; border:none; background:var(--primary-color); color:white; font-weight:600; cursor:pointer;">Speichern</button>
-                 </div>
-             </div>
-        </div>`);
+                  <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">WIEDERHOLUNG</div>
+                  <select id="modal-todo-repeat" onchange="window.onTodoRepeatChange(this.value)" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:12px; font-family:var(--font-clean); outline:none; background:#fff;">
+                      <option value="once" ${appState.todoRepeatOption === 'once' ? 'selected' : ''}>Einmalig (Datum: ${appState.modalDateStr})</option>
+                      <option value="daily" ${appState.todoRepeatOption === 'daily' ? 'selected' : ''}>Täglich</option>
+                      <option value="weekly" ${appState.todoRepeatOption === 'weekly' ? 'selected' : ''}>Wöchentlich</option>
+                      <option value="monthly" ${appState.todoRepeatOption === 'monthly' ? 'selected' : ''}>Monatlich</option>
+                  </select>
+
+                  ${appState.todoRepeatOption === 'weekly' ? `
+                      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+                          ${['Mo','Di','Mi','Do','Fr','Sa','So'].map((day, idx) => {
+                              const dNum = idx + 1;
+                              const sel = appState.selectedDays.includes(dNum);
+                              return `<button onclick="window.toggleModalDay(${dNum})" style="width:36px; height:36px; border-radius:50%; border:1px solid ${sel ? 'var(--primary-color)' : '#e5e7eb'}; background:${sel ? 'var(--primary-color)' : 'white'}; color:${sel ? 'white' : 'var(--text-muted)'}; font-size:11px; font-weight:600; cursor:pointer;">${day}</button>`;
+                          }).join('')}
+                      </div>
+                  ` : ''}
+
+                  ${appState.todoRepeatOption === 'monthly' ? `
+                      <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-bottom:16px;">
+                          ${Array.from({length: 31}, (_, i) => i + 1).map(d => {
+                              const sel = appState.selectedDates.includes(d);
+                              return `<button onclick="window.toggleModalDate(${d})" style="width:100%; height:30px; border-radius:6px; border:1px solid ${sel ? 'var(--primary-color)' : '#e5e7eb'}; background:${sel ? 'var(--primary-color)' : 'white'}; color:${sel ? 'white' : 'var(--text-muted)'}; font-size:10px; cursor:pointer;">${d}</button>`;
+                          }).join('')}
+                      </div>
+                  ` : ''}
+                  
+                  <div style="display:flex; gap:12px;">
+                      <button onclick="window.closeTodoModal()" style="flex:1; padding:12px; border-radius:12px; border:1px solid #e5e7eb; background:transparent; font-weight:600; cursor:pointer;">Abbrechen</button>
+                      <button onclick="window.saveTodo()" style="flex:1; padding:12px; border-radius:12px; border:none; background:var(--primary-color); color:white; font-weight:600; cursor:pointer;">Speichern</button>
+                  </div>
+              </div>
+         </div>`);
     }
+
+    window.onTodoRepeatChange = (val) => { appState.todoRepeatOption = val; triggerRender(); };
+    window.toggleModalDay = (d) => {
+        if(appState.selectedDays.includes(d)) appState.selectedDays = appState.selectedDays.filter(x => x !== d);
+        else appState.selectedDays.push(d);
+        triggerRender();
+    };
+    window.toggleModalDate = (d) => {
+        if(appState.selectedDates.includes(d)) appState.selectedDates = appState.selectedDates.filter(x => x !== d);
+        else appState.selectedDates.push(d);
+        triggerRender();
+    };
 
     if(appState.isApptModalOpen) {
         document.body.insertAdjacentHTML('beforeend', `
