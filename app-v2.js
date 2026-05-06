@@ -256,12 +256,11 @@ window.closeApptModal = () => { appState.isApptModalOpen = false; triggerRender(
 window.saveAppt = async () => {
     const title = document.getElementById('modal-appt-title').value;
     const timeStr = document.getElementById('modal-appt-time').value;
+    const color = document.getElementById('modal-appt-color').value;
     if(!title) return;
-    const colors = ['#fbcfe8', '#bae6fd', '#bbf7d0', '#fef08a', '#e9d5ff'];
-    const rC = colors[Math.floor(Math.random() * colors.length)];
     
     const { data } = await _sb.from('appointments').insert([{
-        title: title, date_str: appState.apptDateStr, time_str: timeStr, color: rC
+        title: title, date_str: appState.apptDateStr, time_str: timeStr, color: color
     }]).select();
 
     if(data && data.length > 0) {
@@ -285,50 +284,9 @@ const views = {
     home: () => {
         const filteredBooks = appState.books.filter(b => b.title.toLowerCase().includes(appState.searchQuery.toLowerCase()));
         
-        let nextAppt = null;
-        let sortedAppts = [...appState.appointments].sort((a,b) => {
-             const d1 = new Date(a.dateStr.replace(/-/g,'/') + ' ' + (a.timeStr||'00:00')).getTime();
-             const d2 = new Date(b.dateStr.replace(/-/g,'/') + ' ' + (b.timeStr||'00:00')).getTime();
-             return d1 - d2;
-        });
-        const nowMs = new Date().getTime();
-        for(const a of sortedAppts) {
-            const ms = new Date(a.dateStr.replace(/-/g,'/') + ' ' + (a.timeStr||'00:00')).getTime();
-            if(ms > nowMs - 1000*60*60) { nextAppt = a; break; }
-        }
-        
-        const todayT = window.getDateTodos(todayStr, new Date());
-        const unfinishedT = todayT.find(x => !x.isDone);
-        
         return `
         <div class="view" id="view-home">
-            <h3 class="section-title">Today's Focus</h3>
-            
-            <div class="widget-card">
-                <div class="washi-tape-top"></div>
-                ${svgSmallBow}
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <i data-lucide="sun" style="color: var(--primary-color);"></i>
-                    <h4 style="font-size: 16px; font-weight: 600;">Daily Task</h4>
-                </div>
-                <p style="font-size: 14px; color: var(--text-muted);">${unfinishedT ? unfinishedT.title : 'Alles erledigt! 🧸'}</p>
-            </div>
-            
-            <div class="widget-card" onclick="document.querySelector('[data-view=termin-kalender]').click();" style="cursor:pointer; background: linear-gradient(135deg, #ffffff 0%, var(--primary-light) 150%);">
-                <div class="washi-tape-top" style="background: rgba(167, 139, 250, 0.4);"></div>
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <i data-lucide="calendar" style="color: #a78bfa;"></i>
-                    <h4 style="font-size: 16px; font-weight: 600;">Next Appointment</h4>
-                </div>
-                ${nextAppt ? `
-                    <p style="font-size: 15px; color: var(--text-main); font-weight: 600; margin-bottom: 4px;">${nextAppt.title}</p>
-                    <p style="font-size: 13px; color: var(--text-muted);">${nextAppt.dateStr.split('-').reverse().join('.')} um ${nextAppt.timeStr} Uhr</p>
-                ` : `
-                    <p style="font-size: 14px; color: var(--text-muted);">Keine anstehenden Termine 🧸</p>
-                `}
-            </div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:32px; margin-bottom: 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; margin-bottom: 16px;">
                 <h3 class="section-title" style="margin:0;">Meine Bücher</h3>
                 <div style="display:flex; gap:12px; align-items:center;">
                     ${appState.isSearching 
@@ -433,7 +391,7 @@ const views = {
                 let evtHtml = dayTodos.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
                 if(dayTodos.length > 3) evtHtml += `<div style="font-size:8px; color:var(--text-muted); text-align:center;">+${dayTodos.length - 3}</div>`;
                 
-                gridHtml += `<div style="min-height:40px; border-radius:8px; padding:2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
+                gridHtml += `<div style="min-height:80px; border-radius:8px; padding:2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
                                 <span style="font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; margin-bottom:2px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
                                 <div style="display:flex; flex-direction:column; width:80%; gap:2px; margin-top:2px;">${evtHtml}</div>
                              </div>`;
@@ -466,7 +424,7 @@ const views = {
             
         } else if (appState.calScope === 'day') {
              headerText = `${baseDate.getDate()}. ${monthNames[m]} ${y}`;
-             const dateStr = `${y}-${m}-${baseDate.getDate()}`;
+             const dateStr = formatDate(y, m, baseDate.getDate());
              const dayTodos = window.getDateTodos(dateStr, baseDate);
              
              let dHtml = `<div style="display:flex; flex-direction:column; gap:12px; margin-bottom:24px;">`;
@@ -535,7 +493,7 @@ const views = {
                 const isSelected = appState.selectedDateStr === dateStr;
                 let evtHtml = dayAppts.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
                 if(dayAppts.length > 3) evtHtml += `<div style="font-size:8px; color:var(--text-muted); text-align:center;">+${dayAppts.length - 3}</div>`;
-                gridHtml += `<div style="min-height:40px; border-radius:8px; padding:2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
+                gridHtml += `<div style="min-height:80px; border-radius:8px; padding:2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
                                 <span style="font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; width:22px; height:22px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
                                 <div style="display:flex; flex-direction:column; width:80%; gap:2px; margin-top:2px;">${evtHtml}</div>
                              </div>`;
@@ -566,11 +524,11 @@ const views = {
             
         } else if (appState.calScope === 'day') {
              headerText = `${baseDate.getDate()}. ${monthNames[m]} ${y}`;
-             const dateStr = `${y}-${m}-${baseDate.getDate()}`;
+             const dateStr = formatDate(y, m, baseDate.getDate());
              let dayAppts = window.getDateAppointments(dateStr);
              
              let dHtml = `<div style="background:rgba(255,255,255,0.7); border-radius:16px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,0.02); display:flex; flex-direction:column;">`;
-             for(let h=7; h<=20; h++) {
+             for(let h=5; h<=21; h++) {
                  const tStr = `${h.toString().padStart(2, '0')}:00`;
                  const evtsNow = dayAppts.filter(e => { const eh = parseInt(e.timeStr.split(':')[0]); return eh === h; });
                  
@@ -695,6 +653,16 @@ function triggerRender() {
                  
                  <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">UHRZEIT</div>
                  <input type="time" id="modal-appt-time" value="${appState.apptTimeStr}" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:24px; font-family:var(--font-clean); outline:none; background:#fff;">
+
+                 <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">FARBE</div>
+                 <select id="modal-appt-color" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:24px; font-family:var(--font-clean); outline:none; background:#fff;">
+                     <option value="#fbcfe8">Zartrosa</option>
+                     <option value="#bae6fd">Hellblau</option>
+                     <option value="#bbf7d0">Mintgrün</option>
+                     <option value="#fef08a">Pastellgelb</option>
+                     <option value="#e9d5ff">Lila</option>
+                     <option value="#ffeedd">Pfirsich</option>
+                 </select>
 
                  <div style="display:flex; gap:12px;">
                      <button onclick="window.closeApptModal()" style="flex:1; padding:12px; border-radius:12px; border:1px solid #e5e7eb; background:transparent; font-weight:600; cursor:pointer;">Abbrechen</button>
