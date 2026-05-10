@@ -832,7 +832,7 @@ _sb.auth.getSession().then(({ data: { session }, error }) => {
     const appContainer = document.getElementById('app-container');
     if(currentUser) { 
         overlay.style.display = 'none'; 
-        appContainer.style.display = 'block';
+        appContainer.style.display = 'flex';
         loadData(); 
     }
     else { 
@@ -853,7 +853,7 @@ _sb.auth.onAuthStateChange((event, session) => {
     if(currentUser) { 
         console.log("User active -> Hiding login overlay, calling loadData");
         overlay.style.display = 'none'; 
-        appContainer.style.display = 'block';
+        appContainer.style.display = 'flex';
         loadData(); 
     } else { 
         console.log("No user -> Showing login overlay");
