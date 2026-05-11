@@ -30,7 +30,8 @@ const appState = {
     isApptModalOpen: false, apptDateStr: '', apptTimeStr: '',
     books: [],
     todos: [],
-    appointments: []
+    appointments: [],
+    dailys: []
 };
 
 // --- Auth UI Logic ---
@@ -101,11 +102,12 @@ const loadData = async () => {
     
     try {
         console.log("Fetching data from Supabase...");
-        const [booksRes, templatesRes, instancesRes, apptsRes] = await Promise.all([
+        const [booksRes, templatesRes, instancesRes, apptsRes, dailysRes] = await Promise.all([
             _sb.from('books').select('*').order('id', {ascending: true}),
             _sb.from('todo_templates').select('*'),
             _sb.from('todo_instances').select('*'),
-            _sb.from('appointments').select('*')
+            _sb.from('appointments').select('*'),
+            _sb.from('dailys').select('*').order('created_at', {ascending: true})
         ]);
         
         console.log("Books DB error:", booksRes.error);
@@ -114,11 +116,14 @@ const loadData = async () => {
         console.log("Appts DB error:", apptsRes.error);
         
         if(booksRes.data) appState.books = booksRes.data.map(b => ({
-            id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: b.type, isLocked: b.is_locked, notes: b.notes
+            id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: 'todo'
         }));
         if(templatesRes.data) appState.todoTemplates = templatesRes.data;
         if(instancesRes.data) appState.todoInstances = instancesRes.data.map(t => ({
             id: t.id, template_id: t.template_id, title: t.title, bookId: t.book_id, dateStr: t.date_str, isDone: t.is_done
+        }));
+        if(dailysRes && dailysRes.data) appState.dailys = dailysRes.data.map(d => ({
+            id: d.id, title: d.title, lastCompletedDate: d.last_completed_date
         }));
         
         await window.generateInstancesForToday();
@@ -138,24 +143,47 @@ window.handleSearch = (el) => { appState.searchQuery = el.value; triggerRender()
 window.goToBooks = () => { document.querySelector('[data-view="books"]').click(); };
 
 window.changeTodoTab = (tab) => { appState.todoTab = tab; triggerRender(); };
-window.updateBookNotes = async (id, text) => { const b = appState.books.find(x => x.id === id); if(b) { b.notes = text; await _sb.from('books').update({ notes: text }).eq('id', id); } };
-
+// Notes function removed
 // Book management
 window.updateBookTitle = async (id, val) => { const b = appState.books.find(x => x.id === id); if(b) { b.title = val; await _sb.from('books').update({ title: val }).eq('id', id); } };
 window.updateBookColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.color = color; triggerRender(); await _sb.from('books').update({ color: color }).eq('id', id); } };
 window.updateBookTextColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.textColor = color; triggerRender(); await _sb.from('books').update({ text_color: color }).eq('id', id); } };
 window.deleteBook = async (id) => { appState.books = appState.books.filter(x => x.id !== id); triggerRender(); await _sb.from('books').delete().eq('id', id); };
-window.addBook = async () => { 
-    const { data } = await _sb.from('books').insert([{ title: 'Neues Buch', color: '#fef08a', text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
+
+// Dailys management
+window.addDaily = async () => {
+    const title = prompt("Neues Daily:");
+    if(!title) return;
+    const { data } = await _sb.from('dailys').insert([{ title: title, last_completed_date: null }]).select();
     if(data && data.length > 0) {
-        const b = data[0];
-        appState.books.push({ id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: b.type, isLocked: b.is_locked, notes: b.notes });
+        appState.dailys.push({ id: data[0].id, title: data[0].title, lastCompletedDate: null });
         triggerRender();
     }
 };
-window.updateBookType = async (id, type) => { const b = appState.books.find(x => x.id === id); if(b && !b.isLocked) { b.type = type; triggerRender(); await _sb.from('books').update({ type: type }).eq('id', id); } };
-window.lockBook = async (id) => { const b = appState.books.find(x => x.id === id); if(b) { b.isLocked = true; triggerRender(); await _sb.from('books').update({ is_locked: true }).eq('id', id); } };
-
+window.toggleDaily = async (id) => {
+    const d = appState.dailys.find(x => x.id === id);
+    if(d) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const newDate = d.lastCompletedDate === todayStr ? null : todayStr;
+        d.lastCompletedDate = newDate;
+        triggerRender();
+        await _sb.from('dailys').update({ last_completed_date: newDate }).eq('id', id);
+    }
+};
+window.deleteDaily = async (id) => {
+    appState.dailys = appState.dailys.filter(x => x.id !== id);
+    triggerRender();
+    await _sb.from('dailys').delete().eq('id', id);
+};
+window.addBook = async () => { 
+    const { data } = await _sb.from('books').insert([{ title: 'Neues Buch', color: '#f472b6', text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
+    if(data && data.length > 0) {
+        const b = data[0];
+        appState.books.push({ id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: 'todo' });
+        triggerRender();
+    }
+};
+// Type and Lock functions removed
 window.openBook = (id) => {
     const b = appState.books.find(x => x.id === id);
     if (b) {
@@ -194,10 +222,12 @@ window.calNavigate = (dir) => {
     appState.calBaseDate = d.getTime();
     triggerRender();
 };
-window.calSelectDate = (yyyy, mm, dd) => {
-    appState.selectedDateStr = formatDate(yyyy, mm, dd);
-    appState.calBaseDate = new Date(yyyy, mm, dd).getTime();
-    appState.calScope = 'day';
+window.calSelectDate = (y, m, d) => {
+    appState.selectedDateStr = formatDate(y, m, d);
+    appState.calBaseDate = new Date(y, m, d).getTime();
+    if(currentView === 'termin-kalender' && appState.calScope === 'month') {
+        appState.calScope = 'day';
+    }
     triggerRender();
 };
 
@@ -350,6 +380,40 @@ window.deleteAppt = async (id) => {
 const svgSmallBow = `<svg width="24" height="24" viewBox="0 0 100 100" style="position:absolute; top:-10px; right:-8px; transform:rotate(-15deg);" class="pencil-bow"><path d="M50 50 C 10 -10, -10 40, 50 50 C 90 -10, 110 40, 50 50 M 50 50 C 30 80, 20 100, 20 100 M 50 50 C 70 80, 80 100, 80 100" fill="none" stroke="var(--primary-color)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 const views = {
+    dailys: () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        let dHtml = `<div class="view" id="view-dailys">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                <h2 class="section-title" style="margin:0;">Dailys</h2>
+                <button onclick="window.addDaily()" style="background:var(--primary-color); color:white; border:none; padding:8px 16px; border-radius:20px; font-weight:600; font-size:13px; display:flex; gap:6px; align-items:center; box-shadow:0 4px 12px rgba(244,114,182,0.3);"><i data-lucide="plus" style="width:16px;"></i> Neu</button>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:12px; padding-bottom:100px;">`;
+            
+        if(appState.dailys.length === 0) {
+            dHtml += `<div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
+                <i data-lucide="sun" style="width:48px; height:48px; opacity:0.2; margin-bottom:16px;"></i>
+                <p>Keine Dailys vorhanden. Erstelle deine täglichen Routinen!</p>
+            </div>`;
+        } else {
+            appState.dailys.forEach(d => {
+                const isDone = d.lastCompletedDate === todayStr;
+                dHtml += `
+                <div class="widget-card" style="display:flex; align-items:center; justify-content:space-between; padding:16px; transition:all 0.2s; border:1px solid ${isDone ? 'rgba(0,0,0,0.05)' : 'transparent'}; background:${isDone ? '#f9fafb' : 'white'}; cursor:pointer;" onclick="window.toggleDaily('${d.id}')">
+                    <div style="display:flex; align-items:center; gap:16px;">
+                        <div style="width:24px; height:24px; border-radius:50%; border:2px solid ${isDone ? 'var(--primary-color)' : '#d1d5db'}; display:flex; justify-content:center; align-items:center; background:${isDone ? 'var(--primary-color)' : 'transparent'}; transition:all 0.2s;">
+                            ${isDone ? `<i data-lucide="check" style="color:white; width:14px; height:14px;"></i>` : ''}
+                        </div>
+                        <span style="font-size:16px; font-weight:500; color:${isDone ? 'var(--text-muted)' : 'var(--text-main)'}; text-decoration:${isDone ? 'line-through' : 'none'}; transition:all 0.2s;">${d.title}</span>
+                    </div>
+                    <i data-lucide="trash-2" style="width:18px; color:#fca5a5; cursor:pointer; opacity:0.6; padding:8px; margin:-8px;" onclick="event.stopPropagation(); window.deleteDaily('${d.id}')"></i>
+                </div>`;
+            });
+        }
+        
+        dHtml += `</div></div>`;
+        return dHtml;
+    },
     home: () => {
         const filteredBooks = appState.books.filter(b => b.title.toLowerCase().includes(appState.searchQuery.toLowerCase()));
         
@@ -394,22 +458,9 @@ const views = {
                              <i data-lucide="trash-2" style="color:#fca5a5; cursor:pointer;" onclick="window.deleteBook(${book.id})"></i>
                          </div>
                          
-                         <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
-                             <span style="font-size:12px; color:var(--text-muted); font-weight:600; width:45px;">Typ:</span>
-                             <select onchange="window.updateBookType(${book.id}, this.value)" ${book.isLocked ? 'disabled' : ''} style="flex:1; border:none; border-bottom:1px solid rgba(0,0,0,0.1); background:transparent; font-family:var(--font-clean); font-size:13px; outline:none; color:var(--text-main); cursor:${book.isLocked ? 'not-allowed' : 'pointer'};">
-                                 <option value="todo" ${book.type==='todo'?'selected':''}>Themen To-Do Liste</option>
-                                 <option value="todo-kalender" ${book.type==='todo-kalender'?'selected':''}>To-Do Kalender</option>
-                                 <option value="termin-kalender" ${book.type==='termin-kalender'?'selected':''}>Termin Kalender</option>
-                                 <option value="habits" ${book.type==='habits'?'selected':''}>Statistik / Habits</option>
-                             </select>
-                             ${!book.isLocked ? `<button onclick="window.lockBook(${book.id})" style="border:none; background:var(--primary-color); color:white; border-radius:12px; padding:4px 8px; font-size:10px; font-weight:600; cursor:pointer; box-shadow:0 2px 4px rgba(244,114,182,0.3);">Speichern</button>` : `<i data-lucide="lock" style="width:14px; height:14px; color:var(--text-muted);"></i>`}
-                         </div>
-
                          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px;">
-                             <span style="font-size:12px; color:var(--text-muted); font-weight:600; width:45px;">Buch:</span>
-                             ${pastelPresets.map(color => `
-                                 <button onclick="window.updateBookColor(${book.id}, '${color}')" style="width:24px; height:24px; border-radius:50%; background-color:${color}; border:${book.color === color ? '2px solid var(--primary-color)' : '1px solid rgba(0,0,0,0.1)'}; cursor:pointer;"></button>
-                             `).join('')}
+                             <span style="font-size:12px; color:var(--text-muted); font-weight:600; width:45px;">Farbe:</span>
+                             <input type="color" value="${book.color}" onchange="window.updateBookColor(${book.id}, this.value)" style="width:28px; height:28px; padding:0; border:none; border-radius:50%; cursor:pointer; background:none;">
                          </div>
                     </div>
                 `).join('')}
@@ -456,8 +507,9 @@ const views = {
                 const dayTodos = window.getDateTodos(dateStr, dateObj);
                 const isSelected = appState.selectedDateStr === dateStr;
                 
-                let evtHtml = dayTodos.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
-                if(dayTodos.length > 3) evtHtml += `<div style="font-size:8px; color:var(--text-muted); text-align:center;">+${dayTodos.length - 3}</div>`;
+                const activeTodos = dayTodos.filter(e => !e.isDone);
+                let evtHtml = activeTodos.slice(0, 3).map(e => `<div style="background:${e.color}; width:100%; height:4px; margin-top:2px; border-radius:2px;"></div>`).join('');
+                if(activeTodos.length > 3) evtHtml += `<div style="font-size:8px; color:var(--text-muted); text-align:center;">+${activeTodos.length - 3}</div>`;
                 
                 gridHtml += `<div style="min-height:40px; border-radius:8px; padding:6px 2px; display:flex; flex-direction:column; cursor:pointer; align-items:center; background:${isSelected ? 'rgba(0,0,0,0.03)' : 'transparent'}; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'};" onclick="window.calSelectDate(${y}, ${m}, ${d})">
                                 <span style="font-size:13px; font-weight: ${isSelected ? 'bold' : 'normal'}; text-align:center; margin-bottom:2px; width:20px; height:20px; display:flex; justify-content:center; align-items:center; ${isSelected ? 'background:var(--primary-color); color:white; border-radius:50%;' : ''}">${d}</span>
@@ -532,21 +584,27 @@ const views = {
         const baseDate = new Date(appState.calBaseDate);
         const y = baseDate.getFullYear(); const m = baseDate.getMonth();
         const monthNames = ["Jan", "Feb", "März", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+        let scNav = '';
+        if (appState.calScope === 'day') {
+             scNav = `
+             <div style="margin-bottom:16px;">
+                 <button onclick="appState.calScope='month'; triggerRender()" style="background:transparent; border:none; color:var(--text-muted); font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                    <i data-lucide="arrow-left" style="width:16px;"></i> Zurück zur Monatsübersicht
+                 </button>
+             </div>`;
+        }
+
         let headerText = ""; let bodyHtml = "";
         
-        let scNav = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; margin-top:12px; background:rgba(255,255,255,0.8); padding:4px; border-radius:20px; box-shadow:var(--shadow-soft);">
-                 <button onclick="window.changeCalScope('day')" style="flex:1; border:none; padding:8px 0; border-radius:16px; font-weight:600; font-size:13px; background:${appState.calScope === 'day' ? 'var(--primary-color)' : 'transparent'}; color:${appState.calScope === 'day' ? 'white' : 'var(--text-muted)'}; cursor:pointer;">Tag</button>
-                 <button onclick="window.changeCalScope('week')" style="flex:1; border:none; padding:8px 0; border-radius:16px; font-weight:600; font-size:13px; background:${appState.calScope === 'week' ? 'var(--primary-color)' : 'transparent'}; color:${appState.calScope === 'week' ? 'white' : 'var(--text-muted)'}; cursor:pointer;">Woche</button>
-                 <button onclick="window.changeCalScope('month')" style="flex:1; border:none; padding:8px 0; border-radius:16px; font-weight:600; font-size:13px; background:${appState.calScope === 'month' ? 'var(--primary-color)' : 'transparent'}; color:${appState.calScope === 'month' ? 'white' : 'var(--text-muted)'}; cursor:pointer;">Monat</button>
-            </div>
+        let headerHtml = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:0 12px;">
                 <i data-lucide="chevron-left" style="cursor:pointer; color:var(--text-main);" onclick="window.calNavigate(-1)"></i>
                 <h3 style="font-size:16px; font-weight:700; color:var(--text-main); margin:0;">\${headerText}</h3>
                 <i data-lucide="chevron-right" style="cursor:pointer; color:var(--text-main);" onclick="window.calNavigate(1)"></i>
             </div>`;
 
-        if (appState.calScope === 'month') {
+        if (appState.calScope === 'month' || appState.calScope === 'week') {
+            appState.calScope = 'month'; // force month
             headerText = `${monthNames[m]} ${y}`;
             const daysInMonth = new Date(y, m + 1, 0).getDate();
             const firstDay = new Date(y, m, 1).getDay() === 0 ? 6 : new Date(y, m, 1).getDay() - 1;
@@ -570,56 +628,35 @@ const views = {
                              </div>`;
             }
             gridHtml += `</div>`;
-            bodyHtml = `<div class="widget-card" style="padding:12px 4px; display:flex; flex-direction:column; width:100%; overflow:hidden;">${gridHtml}</div>`;
-            
-        } else if (appState.calScope === 'week') {
-            headerText = `${monthNames[m]} ${y}`;
-            let startOfWeek = new Date(baseDate); startOfWeek.setDate(baseDate.getDate() - (baseDate.getDay()||7) + 1); 
-            
-            let wHtml = `<div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">`;
-            for(let i=0; i<7; i++) {
-                 let d = new Date(startOfWeek); d.setDate(d.getDate() + i);
-                 const dateStr = formatDate(d.getFullYear(), d.getMonth(), d.getDate());
-                 const dayAppts = window.getDateAppointments(dateStr);
-                 const isSelected = appState.selectedDateStr === dateStr;
-                 
-                 wHtml += `<div style="background:white; border-radius:12px; padding:12px; border:${isSelected ? '1px solid var(--primary-color)' : '1px solid transparent'}; box-shadow:var(--shadow-soft); cursor:pointer;" onclick="window.calSelectDate(${d.getFullYear()}, ${d.getMonth()}, ${d.getDate()})">
-                    <div style="font-weight:600; font-size:14px; margin-bottom:12px;">${['Mo','Di','Mi','Do','Fr','Sa','So'][i]}, ${d.getDate()}.</div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                       ${dayAppts.map(e => `<div style="background:${e.color}; padding:6px 10px; border-radius:6px; font-size:12px; display:flex; gap:8px;"><span style="font-weight:700; opacity:0.6;">${e.timeStr}</span> <span style="font-weight:600;">${e.title}</span></div>`).join('')}
-                       ${dayAppts.length === 0 ? `<span style="font-size:12px; color:var(--text-muted); opacity:0.6;">Keine Termine</span>` : ''}
-                    </div>
-                 </div>`;
-            }
-            bodyHtml = wHtml + `</div>`;
+            bodyHtml = headerHtml + `<div class="widget-card" style="padding:12px 4px; display:flex; flex-direction:column; width:100%; overflow:hidden;">${gridHtml}</div>`;
             
         } else if (appState.calScope === 'day') {
              headerText = `${baseDate.getDate()}. ${monthNames[m]} ${y}`;
              const dateStr = formatDate(y, m, baseDate.getDate());
              let dayAppts = window.getDateAppointments(dateStr);
+             dayAppts.sort((a, b) => a.timeStr.localeCompare(b.timeStr));
              
-             let dHtml = `<div style="background:rgba(255,255,255,0.7); border-radius:16px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,0.02); display:flex; flex-direction:column;">`;
-             for(let h=5; h<=21; h++) {
-                 const tStr = `${h.toString().padStart(2, '0')}:00`;
-                 const evtsNow = dayAppts.filter(e => { const eh = parseInt(e.timeStr.split(':')[0]); return eh === h; });
-                 
-                 dHtml += `<div style="display:flex; gap:16px; position:relative; padding-bottom:8px;">
-                     <div style="width:40px; font-size:12px; color:var(--text-muted); font-weight:600; padding-top:16px; text-align:right;">${tStr}</div>
-                     <div style="width:1px; background:rgba(0,0,0,0.08); position:absolute; left:60px; top:24px; bottom:0; z-index:0;"></div>
-                     ${evtsNow.length > 0 ? `<div style="width:10px; height:10px; border-radius:50%; background:var(--primary-color); border:2px solid #fff; position:absolute; left:55px; top:18px; z-index:1;"></div>` : `<div style="width:6px; height:6px; border-radius:50%; background:#e5e7eb; position:absolute; left:57px; top:20px; z-index:1;"></div>`}
-                     <div style="flex:1; padding-left:8px; padding-bottom:12px; display:flex; flex-direction:column; gap:8px; z-index:2;">
-                        ${evtsNow.map(e => `<div style="background:${e.color}; margin-top:8px; padding:12px 14px; border-radius:12px; font-size:13px; color:#1f2937; box-shadow:0 2px 8px rgba(0,0,0,0.04); display:flex; justify-content:space-between; align-items:center;">
-                                <span style="font-weight:500;">${e.title}</span><i data-lucide="x" style="width:14px; cursor:pointer;" onclick="window.deleteAppt(${e.id})"></i>
-                            </div>`).join('')}
-                        ${evtsNow.length === 0 ? `<div style="height:32px; margin-top:8px; border-radius:12px; border:1px dashed rgba(0,0,0,0.1); display:flex; align-items:center; padding:0 12px; cursor:pointer;" onclick="window.openApptModal('${dateStr}', '${tStr}')"><span style="font-size:11px; color:var(--text-muted); font-weight:600;">+ Termin eintragen</span></div>` : ''}
-                     </div>
-                 </div>`;
+             let dHtml = `<div style="display:flex; flex-direction:column; gap:12px; margin-bottom:24px;">`;
+             if(dayAppts.length === 0) {
+                 dHtml += `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Keine Termine an diesem Tag.</p>`;
+             } else {
+                 dHtml += dayAppts.map(e => `
+                    <div style="background:${e.color}; padding:18px; border-radius:16px; box-shadow:var(--shadow-soft); display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span style="font-weight:700; opacity:0.6; font-size:14px;">${e.timeStr}</span>
+                            <span style="font-weight:600; font-size:15px; color:#1f2937;">${e.title}</span>
+                        </div>
+                        <i data-lucide="trash-2" style="width:16px; cursor:pointer; color:rgba(0,0,0,0.3);" onclick="window.deleteAppt(${e.id})"></i>
+                    </div>`).join('');
              }
-             dHtml += `</div>`;
-             bodyHtml = dHtml;
+             dHtml += `</div>
+             <button onclick="window.openApptModal('${dateStr}', '12:00')" style="width:100%; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; padding:16px; border-radius:16px; margin-top:8px; margin-bottom:32px; display:flex; justify-content:center; align-items:center; gap:8px; cursor:pointer;">
+                <i data-lucide="plus" style="width:18px;"></i> Termin hinzufügen
+             </button>`;
+             bodyHtml = headerHtml + dHtml;
         }
 
-        scNav = scNav.replace('\${headerText}', headerText);
+        bodyHtml = bodyHtml.replace('\${headerText}', headerText);
 
         return `<div class="view" id="view-terminkal">
             <h2 class="section-title">Termine ${svgSmallBow}</h2>
@@ -671,24 +708,24 @@ const views = {
         <div class="view" id="view-todo">
             <h2 class="section-title">${b.title} <span style="font-size:12px; padding:4px 8px; border-radius:12px; background:${b.color}; color:#fff; font-family:var(--font-clean);">Checklist</span></h2>
             
-            <div style="display:flex; justify-content:center; gap:8px; margin-bottom:24px; background:#fff; padding:6px; border-radius:30px; box-shadow:var(--shadow-soft);">
-                 <button onclick="window.changeTodoTab('daily')" style="flex:1; padding:8px 16px; border-radius:24px; border:none; transition:all 0.2s; background:${appState.todoTab === 'daily' ? 'var(--primary-color)' : 'transparent'}; color:${appState.todoTab === 'daily' ? 'white' : 'var(--text-muted)'}; font-weight:600; font-size:13px; cursor:pointer;">Tages-Liste</button>
-                 <button onclick="window.changeTodoTab('weekly')" style="flex:1; padding:8px 16px; border-radius:24px; border:none; transition:all 0.2s; background:${appState.todoTab === 'weekly' ? 'var(--primary-color)' : 'transparent'}; color:${appState.todoTab === 'weekly' ? 'white' : 'var(--text-muted)'}; font-weight:600; font-size:13px; cursor:pointer;">Woche</button>
-                 <button onclick="window.changeTodoTab('monthly')" style="flex:1; padding:8px 16px; border-radius:24px; border:none; transition:all 0.2s; background:${appState.todoTab === 'monthly' ? 'var(--primary-color)' : 'transparent'}; color:${appState.todoTab === 'monthly' ? 'white' : 'var(--text-muted)'}; font-weight:600; font-size:13px; cursor:pointer;">Monat</button>
-            </div>
-            
-            <div style="min-height:50px;">
-                ${visibleItems.map(t => renderItem(t)).join('')}
-                ${visibleItems.length === 0 ? `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Keine Einträge in dieser Liste.</p>` : ''}
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:12px;">Heute</h3>
+                <div style="min-height:50px;">
+                    ${bInstances.filter(i => i.dateStr === todayStr).map(t => renderItem(t)).join('')}
+                    ${bInstances.filter(i => i.dateStr === todayStr).length === 0 ? `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Heute keine Aufgaben.</p>` : ''}
+                </div>
             </div>
 
             <button onclick="window.openTodoModal('${todayStr}', ${b.id})" style="width:100%; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; padding:16px; border-radius:16px; margin-top:8px; margin-bottom:32px; display:flex; justify-content:center; align-items:center; gap:8px; cursor:pointer;">
                 <i data-lucide="plus" style="width:18px;"></i> ${b.title} To-Do hinzufügen
             </button>
 
-            <div style="margin-top:24px;">
-                <h3 style="font-size:13px; font-weight:700; color:var(--text-muted); margin-bottom:12px; letter-spacing:0.5px;">NOTIZEN</h3>
-                <textarea oninput="window.updateBookNotes(${b.id}, this.value)" style="width:100%; border:none; background:rgba(255,255,255,0.8); border-radius:12px; padding:16px; font-size:14px; color:var(--text-main); height:150px; resize:none; outline:none; box-shadow:var(--shadow-soft);" placeholder="Tap to add notes...">${b.notes || ''}</textarea>
+            <div style="margin-top:24px; padding-top:24px; border-top:1px solid rgba(0,0,0,0.05);">
+                <h3 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:12px;">Wiederkehrende Aufgaben</h3>
+                <div style="min-height:50px;">
+                    ${bTemplates.map(t => renderItem(t)).join('')}
+                    ${bTemplates.length === 0 ? `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Keine wiederkehrenden Aufgaben.</p>` : ''}
+                </div>
             </div>
         </div>
         `;
@@ -859,7 +896,7 @@ _sb.auth.onAuthStateChange((event, session) => {
         console.log("No user -> Showing login overlay");
         overlay.style.display = 'flex'; 
         appContainer.style.display = 'none';
-        appState.books = []; appState.todos = []; appState.appointments = [];
+        appState.books = []; appState.todos = []; appState.appointments = []; appState.dailys = [];
         triggerRender();
     }
 });
