@@ -140,7 +140,7 @@ const loadData = async () => {
 
 // Global standard helpers
 window.handleSearch = (el) => { appState.searchQuery = el.value; triggerRender(); setTimeout(() => { const input = document.getElementById('book-search'); if(input) { input.focus(); input.setSelectionRange(el.selectionStart, el.selectionStart); } }, 0); };
-window.goToBooks = () => { document.querySelector('[data-view="books"]').click(); };
+window.goToAddBook = () => { currentView = 'add-book'; triggerRender(); };
 
 window.changeTodoTab = (tab) => { appState.todoTab = tab; triggerRender(); };
 // Notes function removed
@@ -176,14 +176,16 @@ window.deleteDaily = async (id) => {
     await _sb.from('dailys').delete().eq('id', id);
 };
 window.addBook = async () => { 
-    const { data } = await _sb.from('books').insert([{ title: 'Neues Buch', color: '#f472b6', text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
+    const title = document.getElementById('new-book-title')?.value || 'Neues Buch';
+    const color = document.getElementById('new-book-color')?.value || '#f472b6';
+    const { data } = await _sb.from('books').insert([{ title: title, color: color, text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
     if(data && data.length > 0) {
         const b = data[0];
         appState.books.push({ id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: 'todo' });
+        currentView = 'home';
         triggerRender();
     }
 };
-// Type and Lock functions removed
 window.openBook = (id) => {
     const b = appState.books.find(x => x.id === id);
     if (b) {
@@ -429,7 +431,7 @@ const views = {
                          </div>`
                       : `<i data-lucide="search" style="color:var(--text-muted); cursor:pointer;" onclick="window.toggleSearch()"></i>`
                     }
-                    <i data-lucide="plus-circle" style="color:var(--primary-color); cursor:pointer; width:22px; height:22px;" onclick="window.goToBooks()"></i>
+                    <i data-lucide="plus-circle" style="color:var(--primary-color); cursor:pointer; width:22px; height:22px;" onclick="window.goToAddBook()"></i>
                 </div>
             </div>
             
@@ -446,7 +448,6 @@ const views = {
         `;
     },
     books: () => {
-        const pastelPresets = ['#fce7f3', '#e8dff5', '#d1fae5', '#fef08a', '#e0f2fe', '#ffeedd'];
         return `
         <div class="view" id="view-books" style="display:block; animation:none;">
             <h2 class="section-title">Bücher anpassen</h2>
@@ -466,9 +467,43 @@ const views = {
                 `).join('')}
             </div>
             
-            <button onclick="window.addBook()" style="width:100%; padding:16px; border-radius:12px; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; margin-top:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <button onclick="window.goToAddBook()" style="width:100%; padding:16px; border-radius:12px; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; margin-top:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
                 <i data-lucide="plus" style="width:18px;"></i> Neues Buch hinzufügen
             </button>
+        </div>
+        `;
+    },
+
+    'add-book': () => {
+        return `
+        <div class="view" id="view-add-book">
+            <div style="margin-bottom:24px;">
+                <button onclick="currentView='home'; triggerRender()" style="background:transparent; border:none; color:var(--text-muted); font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:4px; padding:0;">
+                    <i data-lucide="arrow-left" style="width:16px;"></i> Zurück
+                </button>
+            </div>
+            <h2 class="section-title">Neues Buch erstellen</h2>
+            
+            <div class="widget-card" style="padding:24px; margin-top:24px; display:flex; flex-direction:column; gap:20px;">
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Titel des Buches</label>
+                    <input type="text" id="new-book-title" placeholder="z.B. Haushalt, Arbeit..." style="width:100%; padding:14px; border-radius:12px; border:1px solid #e5e7eb; font-family:var(--font-clean); outline:none; font-size:16px;">
+                </div>
+
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Farbe wählen</label>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <input type="color" id="new-book-color" value="#f472b6" style="width:50px; height:50px; padding:0; border:none; border-radius:12px; cursor:pointer; background:none;">
+                        <span style="color:var(--text-muted); font-size:14px;">Klicke auf das Feld, um eine Farbe zu wählen.</span>
+                    </div>
+                </div>
+
+                <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">Dieses Buch wird automatisch als <b>To-Do Liste</b> erstellt und ist in deinem Kalender sichtbar.</p>
+
+                <button onclick="window.addBook()" style="width:100%; padding:16px; border-radius:12px; border:none; background:var(--primary-color); color:white; font-weight:700; font-size:16px; margin-top:12px; cursor:pointer; box-shadow:0 10px 20px rgba(244,114,182,0.2);">
+                    Buch erstellen
+                </button>
+            </div>
         </div>
         `;
     },
@@ -687,6 +722,21 @@ const views = {
         const renderItem = (t) => {
             const isTemplate = !!t.repeat_type;
             const isDone = !isTemplate && t.isDone;
+            
+            let repeatInfo = '';
+            if (isTemplate) {
+                if (t.repeat_type === 'daily') repeatInfo = 'Jeden Tag';
+                else if (t.repeat_type === 'weekly') {
+                    const days = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+                    const selected = (t.repeat_days || []).map(d => days[d === 7 ? 0 : d]).join(', ');
+                    repeatInfo = `Wöchentlich: ${selected}`;
+                }
+                else if (t.repeat_type === 'monthly') {
+                    const dates = (t.repeat_dates || []).sort((a,b) => a-b).join('., ') + '.';
+                    repeatInfo = `Monatlich: Am ${dates}`;
+                }
+            }
+
             return `
              <div class="widget-card" style="display:flex; align-items:center; justify-content:space-between; padding:16px; margin-bottom:12px;" ${!isTemplate ? `onclick="window.toggleTodo(${t.id})"` : ''}>
                 <div style="display:flex; align-items:center; gap:12px;">
@@ -696,7 +746,7 @@ const views = {
                     }
                     <div style="display:flex; flex-direction:column;">
                         <span style="font-weight:500; font-size:15px; text-decoration:${isDone ? 'line-through' : 'none'}; ${isDone ? 'opacity:0.5' : ''}">${t.title}</span>
-                        ${isTemplate ? `<span style="font-size:10px; color:var(--text-muted);">${t.repeat_type === 'weekly' ? 'Wöchentlich' : 'Monatlich'}</span>` : ''}
+                        ${isTemplate ? `<span style="font-size:10px; color:var(--text-muted);">${repeatInfo}</span>` : ''}
                     </div>
                 </div>
                 <i data-lucide="trash-2" style="width:16px; cursor:pointer; color:rgba(0,0,0,0.3);" onclick="event.stopPropagation(); ${isTemplate ? `window.deleteTemplate(${t.id})` : `window.deleteTodo(${t.id})`}"></i>
