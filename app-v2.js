@@ -140,7 +140,7 @@ const loadData = async () => {
 
 // Global standard helpers
 window.handleSearch = (el) => { appState.searchQuery = el.value; triggerRender(); setTimeout(() => { const input = document.getElementById('book-search'); if(input) { input.focus(); input.setSelectionRange(el.selectionStart, el.selectionStart); } }, 0); };
-window.goToAddBook = () => { currentView = 'add-book'; triggerRender(); };
+window.goToBooks = () => { currentView = 'books'; triggerRender(); };
 
 window.changeTodoTab = (tab) => { appState.todoTab = tab; triggerRender(); };
 // Notes function removed
@@ -203,7 +203,7 @@ window.getDateTodos = (dateStr, dateObj) => {
     
     return appState.todoInstances.filter(t => t.dateStr === dateStr).map(t => {
         const b = appState.books.find(x => x.id == t.bookId);
-        return { ...t, color: b ? b.color : '#e5e7eb' };
+        return { ...t, color: b ? b.color : '#F8A8D4' };
     });
 };
 
@@ -431,7 +431,7 @@ const views = {
                          </div>`
                       : `<i data-lucide="search" style="color:var(--text-muted); cursor:pointer;" onclick="window.toggleSearch()"></i>`
                     }
-                    <i data-lucide="plus-circle" style="color:var(--primary-color); cursor:pointer; width:22px; height:22px;" onclick="window.goToAddBook()"></i>
+                    <i data-lucide="plus-circle" style="color:var(--primary-color); cursor:pointer; width:22px; height:22px;" onclick="window.goToBooks()"></i>
                 </div>
             </div>
             
@@ -450,7 +450,12 @@ const views = {
     books: () => {
         return `
         <div class="view" id="view-books" style="display:block; animation:none;">
-            <h2 class="section-title">Bücher anpassen</h2>
+            <div style="margin-bottom:24px;">
+                <button onclick="currentView='home'; triggerRender()" style="background:transparent; border:none; color:var(--text-muted); font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:4px; padding:0;">
+                    <i data-lucide="arrow-left" style="width:16px;"></i> Zurück
+                </button>
+            </div>
+            <h2 class="section-title">Bücher verwalten</h2>
             <div style="display:flex; flex-direction:column; gap:16px; margin-top:24px;">
                 ${appState.books.map(book => `
                     <div class="widget-card" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
@@ -467,7 +472,7 @@ const views = {
                 `).join('')}
             </div>
             
-            <button onclick="window.goToAddBook()" style="width:100%; padding:16px; border-radius:12px; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; margin-top:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <button onclick="currentView='add-book'; triggerRender()" style="width:100%; padding:16px; border-radius:12px; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; margin-top:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
                 <i data-lucide="plus" style="width:18px;"></i> Neues Buch hinzufügen
             </button>
         </div>
@@ -701,22 +706,31 @@ const views = {
     },
 
     todo: () => {
-        const b = appState.books.find(x => x.id === appState.activeBookId) || { title: 'To-Do Liste', type: 'todo', notes: '' };
-        appState.todoTab = appState.todoTab || 'daily';
+        const b = appState.books.find(x => x.id === appState.activeBookId) || { title: 'To-Do Liste', type: 'todo', notes: '', color: '#F8A8D4' };
+        appState.todoTab = appState.todoTab || 'heute';
         
         const bTemplates = appState.todoTemplates.filter(t => t.book_id === b.id);
         const bInstances = appState.todoInstances.filter(t => t.bookId === b.id);
         
-        let visibleItems = [];
-        if(appState.todoTab === 'daily') {
-            // Zeige heutige Instanzen
-            visibleItems = bInstances.filter(i => i.dateStr === todayStr);
-        }
-        else if(appState.todoTab === 'weekly') {
-            visibleItems = bTemplates.filter(t => t.repeat_type === 'weekly');
-        }
-        else if(appState.todoTab === 'monthly') {
-            visibleItems = bTemplates.filter(t => t.repeat_type === 'monthly');
+        // Filter instances by current view
+        let visibleInstances = [];
+        if(appState.todoTab === 'heute') {
+            visibleInstances = bInstances.filter(i => i.dateStr === todayStr);
+        } else if(appState.todoTab === 'woche') {
+            // Get dates for this week
+            const startOfWeek = new Date(td);
+            startOfWeek.setDate(td.getDate() - (td.getDay() || 7) + 1);
+            const weekDates = Array.from({length: 7}, (_, i) => {
+                const d = new Date(startOfWeek);
+                d.setDate(startOfWeek.getDate() + i);
+                return formatDate(d.getFullYear(), d.getMonth(), d.getDate());
+            });
+            visibleInstances = bInstances.filter(i => weekDates.includes(i.dateStr));
+        } else if(appState.todoTab === 'monat') {
+            visibleInstances = bInstances.filter(i => {
+                const d = new Date(i.dateStr);
+                return d.getMonth() === td.getMonth() && d.getFullYear() === td.getFullYear();
+            });
         }
         
         const renderItem = (t) => {
@@ -747,34 +761,47 @@ const views = {
                     <div style="display:flex; flex-direction:column;">
                         <span style="font-weight:500; font-size:15px; text-decoration:${isDone ? 'line-through' : 'none'}; ${isDone ? 'opacity:0.5' : ''}">${t.title}</span>
                         ${isTemplate ? `<span style="font-size:10px; color:var(--text-muted);">${repeatInfo}</span>` : ''}
+                        ${!isTemplate && appState.todoTab !== 'heute' ? `<span style="font-size:10px; color:var(--text-muted);">${t.dateStr}</span>` : ''}
                     </div>
                 </div>
-                <i data-lucide="trash-2" style="width:16px; cursor:pointer; color:rgba(0,0,0,0.3);" onclick="event.stopPropagation(); ${isTemplate ? `window.deleteTemplate(${t.id})` : `window.deleteTodo(${t.id})`}"></i>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="trash-2" style="width:16px; cursor:pointer; color:rgba(0,0,0,0.3);" onclick="event.stopPropagation(); ${isTemplate ? `window.deleteTemplate(${t.id})` : `window.deleteTodo(${t.id})`}"></i>
+                </div>
              </div>
             `;
         };
 
         return `
         <div class="view" id="view-todo">
-            <h2 class="section-title">${b.title} <span style="font-size:12px; padding:4px 8px; border-radius:12px; background:${b.color}; color:#fff; font-family:var(--font-clean);">Checklist</span></h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                 <h2 class="section-title" style="margin:0;">${b.title}</h2>
+                 <span style="font-size:12px; padding:4px 10px; border-radius:12px; background:${b.color}; color:#fff; font-family:var(--font-clean); font-weight:600;">Checklist</span>
+            </div>
+
+            <div style="display:flex; background:rgba(0,0,0,0.03); border-radius:12px; padding:4px; margin-bottom:24px;">
+                ${['heute', 'woche', 'monat'].map(tab => `
+                    <button onclick="window.changeTodoTab('${tab}')" style="flex:1; border:none; padding:8px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; background:${appState.todoTab === tab ? 'white' : 'transparent'}; color:${appState.todoTab === tab ? 'var(--primary-color)' : 'var(--text-muted)'}; box-shadow:${appState.todoTab === tab ? '0 2px 6px rgba(0,0,0,0.05)' : 'none'}; transition:all 0.2s;">
+                        ${tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                `).join('')}
+            </div>
             
-            <div style="margin-bottom:24px;">
-                <h3 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:12px;">Heute</h3>
+            <div style="margin-bottom:32px;">
                 <div style="min-height:50px;">
-                    ${bInstances.filter(i => i.dateStr === todayStr).map(t => renderItem(t)).join('')}
-                    ${bInstances.filter(i => i.dateStr === todayStr).length === 0 ? `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Heute keine Aufgaben.</p>` : ''}
+                    ${visibleInstances.map(t => renderItem(t)).join('')}
+                    ${visibleInstances.length === 0 ? `<p style="text-align:center; color:var(--text-muted); padding:20px;">Keine Aufgaben in diesem Zeitraum.</p>` : ''}
                 </div>
             </div>
 
-            <button onclick="window.openTodoModal('${todayStr}', ${b.id})" style="width:100%; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; padding:16px; border-radius:16px; margin-top:8px; margin-bottom:32px; display:flex; justify-content:center; align-items:center; gap:8px; cursor:pointer;">
-                <i data-lucide="plus" style="width:18px;"></i> ${b.title} To-Do hinzufügen
+            <button onclick="window.openTodoModal('${todayStr}', ${b.id})" style="width:100%; border:2px dashed var(--primary-light); background:transparent; color:var(--primary-color); font-weight:600; padding:16px; border-radius:16px; margin-top:8px; margin-bottom:40px; display:flex; justify-content:center; align-items:center; gap:8px; cursor:pointer;">
+                <i data-lucide="plus" style="width:18px;"></i> Neue Aufgabe
             </button>
 
             <div style="margin-top:24px; padding-top:24px; border-top:1px solid rgba(0,0,0,0.05);">
-                <h3 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:12px;">Wiederkehrende Aufgaben</h3>
+                <h3 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Wiederkehrende Aufgaben</h3>
                 <div style="min-height:50px;">
                     ${bTemplates.map(t => renderItem(t)).join('')}
-                    ${bTemplates.length === 0 ? `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">Keine wiederkehrenden Aufgaben.</p>` : ''}
+                    ${bTemplates.length === 0 ? `<p style="text-align:center; color:var(--text-muted); padding:20px;">Keine wiederkehrenden Aufgaben.</p>` : ''}
                 </div>
             </div>
         </div>
@@ -795,7 +822,6 @@ function triggerRender() {
                  <h3 style="font-family:var(--font-hand); font-size:24px; margin-bottom:16px;">Neues To-Do</h3>
                  <input type="text" id="modal-todo-title" placeholder="Was ist zu tun?" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:16px; font-family:var(--font-clean); outline:none;">
                  
-                 <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:8px;">KATEGORIE / THEMA</div>
                  <select id="modal-todo-book" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb; margin-bottom:16px; font-family:var(--font-clean); outline:none; background:#fff;">
                      <option value="sonstiges">🎨 Sonstiges</option>
                      ${appState.books.filter(b => b.type === 'todo').map(b => `<option value="${b.id}" ${b.id === appState.modalBookIdDefault ? 'selected' : ''}>📚 ${b.title}</option>`).join('')}
