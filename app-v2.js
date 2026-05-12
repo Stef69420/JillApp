@@ -240,7 +240,7 @@ window.calNavigate = (dir) => {
 window.calSelectDate = (y, m, d) => {
     appState.selectedDateStr = formatDate(y, m, d);
     appState.calBaseDate = new Date(y, m, d).getTime();
-    if(currentView === 'termin-kalender' && appState.calScope === 'month') {
+    if((currentView === 'termin-kalender' || currentView === 'todo-kalender') && appState.calScope === 'month') {
         appState.calScope = 'day';
     }
     triggerRender();
