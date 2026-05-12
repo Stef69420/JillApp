@@ -146,7 +146,12 @@ window.changeTodoTab = (tab) => { appState.todoTab = tab; triggerRender(); };
 // Notes function removed
 // Book management
 window.updateBookTitle = async (id, val) => { const b = appState.books.find(x => x.id === id); if(b) { b.title = val; await _sb.from('books').update({ title: val }).eq('id', id); } };
-window.updateBookColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.color = color; triggerRender(); await _sb.from('books').update({ color: color }).eq('id', id); } };
+window.updateBookColor = async (id, color) => { 
+    if(!color.startsWith('#')) color = '#' + color;
+    color = color.replace('##', '#'); // Prevent double hash
+    const b = appState.books.find(x => x.id === id); 
+    if(b) { b.color = color; triggerRender(); await _sb.from('books').update({ color: color }).eq('id', id); } 
+};
 window.updateBookTextColor = async (id, color) => { const b = appState.books.find(x => x.id === id); if(b) { b.textColor = color; triggerRender(); await _sb.from('books').update({ text_color: color }).eq('id', id); } };
 window.deleteBook = async (id) => { appState.books = appState.books.filter(x => x.id !== id); triggerRender(); await _sb.from('books').delete().eq('id', id); };
 
