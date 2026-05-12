@@ -177,13 +177,21 @@ window.deleteDaily = async (id) => {
 };
 window.addBook = async () => { 
     const title = document.getElementById('new-book-title')?.value || 'Neues Buch';
-    const color = document.getElementById('new-book-color')?.value || '#f472b6';
+    const color = document.getElementById('new-book-color-val')?.value || '#f472b6';
     const { data } = await _sb.from('books').insert([{ title: title, color: color, text_color: '#6b7280', type: 'todo', is_locked: false }]).select();
     if(data && data.length > 0) {
         const b = data[0];
         appState.books.push({ id: b.id, title: b.title, color: b.color, textColor: b.text_color, type: 'todo' });
         currentView = 'home';
         triggerRender();
+    }
+};
+window.setNewBookColor = (hex) => {
+    const input = document.getElementById('new-book-color-val');
+    if(input) {
+        input.value = hex;
+        const preview = document.getElementById('new-book-color-preview');
+        if(preview) preview.style.backgroundColor = hex;
     }
 };
 window.openBook = (id) => {
@@ -448,6 +456,7 @@ const views = {
         `;
     },
     books: () => {
+        const pastelPresets = ['#F9A8D4', '#FCE7F3', '#E8DFF5', '#D1FAE5', '#E0F2FE', '#FEE2E2', '#FEF3C7', '#B3E5FC'];
         return `
         <div class="view" id="view-books" style="display:block; animation:none;">
             <div style="margin-bottom:24px;">
@@ -458,15 +467,23 @@ const views = {
             <h2 class="section-title">Bücher verwalten</h2>
             <div style="display:flex; flex-direction:column; gap:16px; margin-top:24px;">
                 ${appState.books.map(book => `
-                    <div class="widget-card" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+                    <div class="widget-card" style="padding:16px; display:flex; flex-direction:column; gap:14px;">
                          <div style="display:flex; justify-content:space-between; align-items:center;">
                              <input type="text" value="${book.title}" oninput="window.updateBookTitle(${book.id}, this.value)" style="font-family:var(--font-hand); font-size:24px; font-weight:600; color:${book.textColor || '#6b7280'}; border:none; border-bottom:1px solid rgba(0,0,0,0.1); background:transparent; outline:none; width:85%;">
                              <i data-lucide="trash-2" style="color:#fca5a5; cursor:pointer;" onclick="window.deleteBook(${book.id})"></i>
                          </div>
                          
-                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px;">
-                             <span style="font-size:12px; color:var(--text-muted); font-weight:600; width:45px;">Farbe:</span>
-                             <input type="color" value="${book.color}" onchange="window.updateBookColor(${book.id}, this.value)" style="width:28px; height:28px; padding:0; border:none; border-radius:50%; cursor:pointer; background:none;">
+                         <div style="display:flex; flex-direction:column; gap:8px;">
+                             <div style="display:flex; gap:8px; align-items:center;">
+                                 <div style="width:32px; height:32px; border-radius:50%; background:${book.color}; border:2px solid white; box-shadow:0 0 0 1px rgba(0,0,0,0.1);"></div>
+                                 <div style="flex:1; position:relative; display:flex; align-items:center; background:rgba(0,0,0,0.02); border-radius:10px; border:1px solid rgba(0,0,0,0.05);">
+                                     <span style="padding-left:12px; color:var(--text-muted); font-weight:700; font-size:14px;">#</span>
+                                     <input type="text" value="${book.color.replace('#','').toUpperCase()}" onchange="window.updateBookColor(${book.id}, '#' + this.value)" style="flex:1; padding:10px 10px 10px 4px; border:none; background:transparent; font-family:var(--font-clean); font-weight:700; outline:none; text-transform:uppercase; font-size:14px; letter-spacing:1px; color:var(--text-main);">
+                                 </div>
+                             </div>
+                             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+                                 ${pastelPresets.map(hex => `<div onclick="window.updateBookColor(${book.id}, '${hex}')" style="width:20px; height:20px; border-radius:50%; background:${hex}; cursor:pointer; border:1px solid rgba(0,0,0,0.05); ${book.color.toUpperCase() === hex.toUpperCase() ? 'transform:scale(1.2); box-shadow:0 0 0 2px var(--primary-color);' : ''}"></div>`).join('')}
+                             </div>
                          </div>
                     </div>
                 `).join('')}
@@ -480,6 +497,7 @@ const views = {
     },
 
     'add-book': () => {
+        const pastelPresets = ['#F9A8D4', '#FCE7F3', '#E8DFF5', '#D1FAE5', '#E0F2FE', '#FEE2E2', '#FEF3C7', '#B3E5FC'];
         return `
         <div class="view" id="view-add-book">
             <div style="margin-bottom:24px;">
@@ -489,23 +507,29 @@ const views = {
             </div>
             <h2 class="section-title">Neues Buch erstellen</h2>
             
-            <div class="widget-card" style="padding:24px; margin-top:24px; display:flex; flex-direction:column; gap:20px;">
+            <div class="widget-card" style="padding:24px; margin-top:24px; display:flex; flex-direction:column; gap:24px;">
                 <div>
-                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Titel des Buches</label>
-                    <input type="text" id="new-book-title" placeholder="z.B. Haushalt, Arbeit..." style="width:100%; padding:14px; border-radius:12px; border:1px solid #e5e7eb; font-family:var(--font-clean); outline:none; font-size:16px;">
+                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Titel des Buches</label>
+                    <input type="text" id="new-book-title" placeholder="z.B. Haushalt, Arbeit..." style="width:100%; padding:14px; border-radius:12px; border:1px solid #e5e7eb; font-family:var(--font-clean); outline:none; font-size:16px; background:rgba(0,0,0,0.01);">
                 </div>
 
                 <div>
-                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Farbe wählen</label>
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <input type="color" id="new-book-color" value="#f472b6" style="width:50px; height:50px; padding:0; border:none; border-radius:12px; cursor:pointer; background:none;">
-                        <span style="color:var(--text-muted); font-size:14px;">Klicke auf das Feld, um eine Farbe zu wählen.</span>
+                    <label style="display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Farbe wählen</label>
+                    <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+                        <div id="new-book-color-preview" style="width:48px; height:48px; border-radius:50%; background:#f472b6; border:3px solid white; box-shadow:0 4px 10px rgba(0,0,0,0.1);"></div>
+                        <div style="flex:1; position:relative; display:flex; align-items:center; background:rgba(0,0,0,0.02); border-radius:12px; border:1px solid rgba(0,0,0,0.05);">
+                            <span style="padding-left:14px; color:var(--text-muted); font-weight:700; font-size:16px;">#</span>
+                            <input type="text" id="new-book-color-val" value="F472B6" oninput="document.getElementById('new-book-color-preview').style.backgroundColor = '#' + this.value" style="flex:1; padding:14px 14px 14px 4px; border:none; background:transparent; font-family:var(--font-clean); font-weight:700; outline:none; text-transform:uppercase; font-size:16px; letter-spacing:1px; color:var(--text-main);">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+                        ${pastelPresets.map(hex => `<div onclick="window.setNewBookColor('${hex}')" style="width:28px; height:28px; border-radius:50%; background:${hex}; cursor:pointer; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.1); transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'"></div>`).join('')}
                     </div>
                 </div>
 
-                <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">Dieses Buch wird automatisch als <b>To-Do Liste</b> erstellt und ist in deinem Kalender sichtbar.</p>
+                <p style="font-size:12px; color:var(--text-muted); line-height:1.5; background:rgba(0,0,0,0.02); padding:12px; border-radius:10px; border-left:3px solid var(--primary-color);">Dieses Buch wird automatisch als <b>To-Do Liste</b> erstellt und ist in deinem Kalender sichtbar.</p>
 
-                <button onclick="window.addBook()" style="width:100%; padding:16px; border-radius:12px; border:none; background:var(--primary-color); color:white; font-weight:700; font-size:16px; margin-top:12px; cursor:pointer; box-shadow:0 10px 20px rgba(244,114,182,0.2);">
+                <button onclick="window.addBook()" style="width:100%; padding:18px; border-radius:14px; border:none; background:var(--primary-color); color:white; font-weight:700; font-size:16px; cursor:pointer; box-shadow:0 10px 20px rgba(244,114,182,0.2); transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 24px rgba(244,114,182,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 20px rgba(244,114,182,0.2)'">
                     Buch erstellen
                 </button>
             </div>
